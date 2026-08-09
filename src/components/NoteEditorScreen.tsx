@@ -42,6 +42,54 @@ interface NoteEditorScreenProps {
   darkMode: boolean;
 }
 
+// Audio Synthesizer helper for clear audible tone playback when offline or simulated
+function playSyntheticVoiceNoteTones(durationSeconds: number, onEnd: () => void) {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) {
+      const timer = setTimeout(onEnd, durationSeconds * 1000);
+      return () => clearTimeout(timer);
+    }
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+    const notes = [261.63, 329.63, 392.00, 523.25, 440.00, 349.23, 329.63, 293.66];
+    const totalBeats = Math.max(Math.floor(durationSeconds * 2), 4);
+
+    for (let i = 0; i < totalBeats; i++) {
+      const noteTime = now + i * 0.5;
+      if (noteTime >= now + durationSeconds) break;
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(notes[i % notes.length], noteTime);
+
+      gain.gain.setValueAtTime(0.18, noteTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, noteTime + 0.45);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(noteTime);
+      osc.stop(noteTime + 0.48);
+    }
+
+    const timer = setTimeout(() => {
+      ctx.close().catch(() => {});
+      onEnd();
+    }, durationSeconds * 1000);
+
+    return () => {
+      clearTimeout(timer);
+      ctx.close().catch(() => {});
+    };
+  } catch {
+    const timer = setTimeout(onEnd, durationSeconds * 1000);
+    return () => clearTimeout(timer);
+  }
+}
+
 // Sub-component for clean, auto-expanding Text Block with inline red Scripture links & atomic tag deletion
 interface TextBlockItemProps {
   block: TextBlock;
@@ -218,8 +266,28 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
   // Image Upload File Input Ref
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Audio Playback state
+  // Audio Playback state & refs
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
+  const activeAudioRef = useRef<HTMLAudioElement | null>(null);
+  const synthStopRef = useRef<(() => void) | null>(null);
+
+  const stopCurrentAudio = () => {
+    if (activeAudioRef.current) {
+      activeAudioRef.current.pause();
+      activeAudioRef.current = null;
+    }
+    if (synthStopRef.current) {
+      synthStopRef.current();
+      synthStopRef.current = null;
+    }
+  };
+
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      stopCurrentAudio();
+    };
+  }, []);
 
   // Debounced Auto-Save
   useEffect(() => {
@@ -384,12 +452,56 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
 
   const handleToggleVoicePlay = (voiceBlock: VoiceBlock) => {
     if (playingVoiceId === voiceBlock.id) {
+      stopCurrentAudio();
       setPlayingVoiceId(null);
     } else {
+      stopCurrentAudio();
       setPlayingVoiceId(voiceBlock.id);
-      setTimeout(() => {
-        setPlayingVoiceId(null);
-      }, (voiceBlock.durationSeconds || 10) * 1000);
+
+      let playedReal = false;
+      if (
+        voiceBlock.audioUrl &&
+        (voiceBlock.audioUrl.startsWith('blob:') ||
+          voiceBlock.audioUrl.startsWith('http') ||
+          voiceBlock.audioUrl.startsWith('data:'))
+      ) {
+        try {
+          const audio = new Audio(voiceBlock.audioUrl);
+          activeAudioRef.current = audio;
+
+          audio.onended = () => {
+            setPlayingVoiceId(null);
+            activeAudioRef.current = null;
+          };
+
+          audio.onerror = () => {
+            activeAudioRef.current = null;
+            synthStopRef.current = playSyntheticVoiceNoteTones(
+              voiceBlock.durationSeconds || 10,
+              () => setPlayingVoiceId(null)
+            );
+          };
+
+          audio.play().then(() => {
+            playedReal = true;
+          }).catch(() => {
+            activeAudioRef.current = null;
+            synthStopRef.current = playSyntheticVoiceNoteTones(
+              voiceBlock.durationSeconds || 10,
+              () => setPlayingVoiceId(null)
+            );
+          });
+        } catch {
+          activeAudioRef.current = null;
+        }
+      }
+
+      if (!playedReal && !activeAudioRef.current) {
+        synthStopRef.current = playSyntheticVoiceNoteTones(
+          voiceBlock.durationSeconds || 10,
+          () => setPlayingVoiceId(null)
+        );
+      }
     }
   };
 

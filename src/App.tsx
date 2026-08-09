@@ -13,6 +13,7 @@ import { NoteEditorScreen } from './components/NoteEditorScreen';
 import { CalendarScreen } from './components/CalendarScreen';
 import { SearchOverlay } from './components/SearchOverlay';
 import { AndroidCodeExportModal } from './components/AndroidCodeExportModal';
+import { warmupOfflineBibleCache } from './data/bibleData';
 
 export default function App() {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
@@ -22,7 +23,7 @@ export default function App() {
   const [showAndroidCode, setShowAndroidCode] = useState<boolean>(false);
   const [darkMode, setDarkMode] = useState<boolean>(false);
 
-  // Load entries and theme on mount
+  // Load entries, theme, and pre-warm Bible cache on mount
   useEffect(() => {
     const loadedEntries = getStoredEntries();
     setEntries(loadedEntries);
@@ -32,6 +33,9 @@ export default function App() {
     if (savedTheme === 'dark') {
       document.documentElement.classList.add('dark');
     }
+
+    // Warm up offline Bible cache in background
+    warmupOfflineBibleCache();
   }, []);
 
   const handleToggleDarkMode = () => {

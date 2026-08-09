@@ -2,6 +2,53 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Mic, Square, Play, Pause, X, Check, Volume2, AlertCircle } from 'lucide-react';
 import { VoiceBlock } from '../types/journal';
 
+function playSyntheticPreviewTones(durationSeconds: number, onEnd: () => void) {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) {
+      const timer = setTimeout(onEnd, durationSeconds * 1000);
+      return () => clearTimeout(timer);
+    }
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+    const notes = [261.63, 329.63, 392.00, 523.25, 440.00, 349.23, 329.63, 293.66];
+    const totalBeats = Math.max(Math.floor(durationSeconds * 2), 4);
+
+    for (let i = 0; i < totalBeats; i++) {
+      const noteTime = now + i * 0.5;
+      if (noteTime >= now + durationSeconds) break;
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(notes[i % notes.length], noteTime);
+
+      gain.gain.setValueAtTime(0.18, noteTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, noteTime + 0.45);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(noteTime);
+      osc.stop(noteTime + 0.48);
+    }
+
+    const timer = setTimeout(() => {
+      ctx.close().catch(() => {});
+      onEnd();
+    }, durationSeconds * 1000);
+
+    return () => {
+      clearTimeout(timer);
+      ctx.close().catch(() => {});
+    };
+  } catch {
+    const timer = setTimeout(onEnd, durationSeconds * 1000);
+    return () => clearTimeout(timer);
+  }
+}
+
 interface VoiceRecorderModalProps {
   onClose: () => void;
   onSaveVoiceNote: (voiceBlock: VoiceBlock) => void;
@@ -99,6 +146,8 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({ onClose,
     }
   };
 
+  const synthStopRef = useRef<(() => void) | null>(null);
+
   const handleTogglePreviewPlay = () => {
     if (!audioUrl) return;
 
@@ -106,15 +155,22 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({ onClose,
       if (audioPreviewRef.current) {
         audioPreviewRef.current.pause();
       }
+      if (synthStopRef.current) {
+        synthStopRef.current();
+        synthStopRef.current = null;
+      }
       setIsPlayingPreview(false);
     } else {
-      if (audioPreviewRef.current) {
-        audioPreviewRef.current.play();
-        setIsPlayingPreview(true);
-      } else if (isSimulated) {
-        // Simulated play audio timer
-        setIsPlayingPreview(true);
-        setTimeout(() => setIsPlayingPreview(false), recordingTime * 1000 || 3000);
+      setIsPlayingPreview(true);
+      if (audioPreviewRef.current && audioUrl && audioUrl.startsWith('blob:')) {
+        audioPreviewRef.current.play().catch(() => {
+          // Fallback synth tone
+          const dur = recordingTime > 0 ? recordingTime : 5;
+          synthStopRef.current = playSyntheticPreviewTones(dur, () => setIsPlayingPreview(false));
+        });
+      } else {
+        const dur = recordingTime > 0 ? recordingTime : 5;
+        synthStopRef.current = playSyntheticPreviewTones(dur, () => setIsPlayingPreview(false));
       }
     }
   };

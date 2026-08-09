@@ -1,4 +1,4 @@
-import { BIBLE_BOOKS } from '../data/bibleData';
+import { BIBLE_BOOKS, getMaxVersesForChapter } from '../data/bibleData';
 import { BibleReferenceMatch } from '../types/journal';
 
 // Build alias map: lowercase abbreviation -> Book Object
@@ -26,23 +26,17 @@ function escapeRegExp(str: string) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// Regex to capture:
-// Group 1: Book name/abbr
-// Group 2: Chapter number
-// Group 3: Separator (':' or 'v' or 'verse' or '.')
-// Group 4: Start verse number
-// Group 5: Optional end verse number (e.g. -7 or -12)
 const BOOK_PATTERN = SORTED_BOOK_KEYS.map((key) => escapeRegExp(key)).join('|');
 
 // Regex matches patterns like:
 // "Matt 5:7", "Matthew 5 v 7", "Matt 5 v 7-20", "1 Cor 13:4-7", "Jn 3:16", "Romans 8:28-30"
 const BIBLE_REF_REGEX = new RegExp(
-  `\\b(${BOOK_PATTERN})\\b[\\s.]*(\\d{1,3})[\\s]*(?:[:.]|v|ver|verse)?[\\s]*(\\d{1,3})(?:[\\s]*(?:[-–—]|to)[\\s]*(\\d{1,3}))?`,
+  `\\b(${BOOK_PATTERN})\\b[\\s.]*(\\d{1,3})[\\s]*(?:[:.]|v|ver|verse)?[\\s]*(\\d{1,3})(?:[\\s]*(?:[-–—]|to)[\\s]*(\\d{1,5}))?`,
   'gi'
 );
 
 /**
- * Scans text and extracts all valid Bible references.
+ * Scans text and extracts all valid Bible references with strict chapter/verse bounds.
  */
 export function parseBibleReferences(text: string): BibleReferenceMatch[] {
   if (!text || typeof text !== 'string') return [];
@@ -66,8 +60,16 @@ export function parseBibleReferences(text: string): BibleReferenceMatch[] {
       const startVerse = parseInt(startVerseStr, 10);
       const endVerse = endVerseStr ? parseInt(endVerseStr, 10) : undefined;
 
-      // Validate chapter and verse sanity (e.g., chapter <= 150, verse <= 200)
-      if (chapter > 0 && chapter <= bookObj.chaptersCount && startVerse > 0 && startVerse <= 180) {
+      // Strict Chapter & Verse Bounds Checking
+      const isChapterValid = chapter > 0 && chapter <= bookObj.chaptersCount;
+      const maxVerses = getMaxVersesForChapter(bookObj.name, chapter);
+
+      const isStartVerseValid = startVerse > 0 && startVerse <= maxVerses;
+      const isEndVerseValid =
+        endVerse === undefined ||
+        (endVerse >= startVerse && endVerse <= maxVerses && endVerse - startVerse <= 50);
+
+      if (isChapterValid && isStartVerseValid && isEndVerseValid) {
         matches.push({
           fullMatch: match[0],
           bookName: bookObj.name,

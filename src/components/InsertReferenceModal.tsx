@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { BookOpen, X, Check, AlertCircle, Search } from 'lucide-react';
-import { BIBLE_BOOKS } from '../data/bibleData';
+import { BIBLE_BOOKS, getMaxVersesForChapter } from '../data/bibleData';
 import { parseBibleReferences } from '../utils/bibleParser';
 
 interface InsertReferenceModalProps {
@@ -14,7 +14,6 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
 }) => {
   // Free text query or structured selection
   const [query, setQuery] = useState<string>('Matt 8 v 9');
-  const [selectedBookName, setSelectedBookName] = useState<string>('Matthew');
   const [showBookDropdown, setShowBookDropdown] = useState<boolean>(false);
 
   // Filter book suggestions based on user input
@@ -30,14 +29,14 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
     ).slice(0, 6);
   }, [query]);
 
-  // Live reference validation logic
+  // Live reference validation logic with strict chapter & verse count checking
   const validationResult = useMemo(() => {
     const trimmed = query.trim();
     if (!trimmed) {
       return { isValid: false, error: 'Please enter a scripture reference.' };
     }
 
-    // Attempt to parse using regex bible parser
+    // First attempt parsing with strict regex bible parser
     const matches = parseBibleReferences(trimmed);
     if (matches.length > 0) {
       const match = matches[0];
@@ -46,11 +45,11 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
         match,
         formatted: `${match.bookName} ${match.chapter} v ${
           match.startVerse
-        }${match.endVerse ? `-${match.endVerse}` : ''}`,
+        }${match.endVerse && match.endVerse !== match.startVerse ? `-${match.endVerse}` : ''}`,
       };
     }
 
-    // If regex failed, check WHY it failed for custom feedback
+    // Detailed error diagnostics if parsing failed:
     // Extract first word as possible book
     const parts = trimmed.split(/[\s.:]+/);
     const possibleBookText = parts[0]?.toLowerCase();
@@ -86,19 +85,41 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
       };
     }
 
-    const verseNum = parseInt(parts[2] || parts[3], 10);
-    if (isNaN(verseNum) || verseNum <= 0) {
-      return {
-        isValid: false,
-        error: `Please specify a valid verse number for ${bookObj.name} ${chapterNum}.`,
-      };
-    }
+    const maxVerses = getMaxVersesForChapter(bookObj.name, chapterNum);
 
-    if (verseNum > 176) {
-      return {
-        isValid: false,
-        error: `Verse ${verseNum} is out of range for ${bookObj.name} ${chapterNum}.`,
-      };
+    // Extract numbers to inspect verse number
+    const numbers = trimmed.match(/\d+/g);
+    if (numbers && numbers.length >= 2) {
+      const verseNum = parseInt(numbers[1], 10);
+
+      if (verseNum > maxVerses) {
+        return {
+          isValid: false,
+          error: `${bookObj.name} chapter ${chapterNum} only has ${maxVerses} verses. Verse ${verseNum} does not exist in the Bible!`,
+        };
+      }
+
+      if (numbers.length >= 3) {
+        const endVerseNum = parseInt(numbers[2], 10);
+        if (endVerseNum > maxVerses) {
+          return {
+            isValid: false,
+            error: `${bookObj.name} chapter ${chapterNum} only has ${maxVerses} verses. End verse ${endVerseNum} is out of range!`,
+          };
+        }
+        if (endVerseNum < verseNum) {
+          return {
+            isValid: false,
+            error: `End verse (${endVerseNum}) cannot be smaller than start verse (${verseNum}).`,
+          };
+        }
+        if (endVerseNum - verseNum > 50) {
+          return {
+            isValid: false,
+            error: `Verse range (${verseNum}-${endVerseNum}) is too wide (max 50 verses per reference).`,
+          };
+        }
+      }
     }
 
     return {
@@ -108,9 +129,8 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
   }, [query]);
 
   const handleSelectBook = (bookName: string) => {
-    setSelectedBookName(bookName);
     setShowBookDropdown(false);
-    // Auto populate query with selected book and chapter 1 verse 1 if empty
+    // Auto populate query with selected book and chapter 1 verse 1
     setQuery(`${bookName} 1 v 1`);
   };
 
