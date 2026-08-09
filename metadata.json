@@ -1,0 +1,6 @@
+{
+  "name": "Bible Journal",
+  "description": "Redmi Notes inspired Bible journaling app with automatic verse detection, interactive Scripture popups, calendar view, voice notes, and drawing.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
