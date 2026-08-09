@@ -109,25 +109,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
       {/* Main Notes List Area */}
       <div className="flex-1 p-4 sm:p-6 max-w-4xl mx-auto w-full pb-24">
-        {/* Banner Quick Start */}
-        <div className="mb-6 p-4 rounded-3xl bg-gradient-to-r from-red-600 via-red-700 to-rose-800 text-white shadow-lg flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-extrabold uppercase tracking-widest bg-black/20 px-2 py-0.5 rounded-md">
-              Scripture Auto-Detect
-            </span>
-            <h2 className="text-lg font-bold mt-1">Type references like "Matt 5 v 7"</h2>
-            <p className="text-xs text-red-100/90 mt-0.5">
-              Clickable red links show Bible popups instantly.
-            </p>
-          </div>
-          <button
-            onClick={onCreateNewEntry}
-            className="px-4 py-2.5 bg-white text-red-700 hover:bg-stone-100 font-bold text-xs rounded-2xl shadow-md shrink-0 transition-transform active:scale-95"
-          >
-            + New Note
-          </button>
-        </div>
-
         {/* Section Title */}
         <div className="flex items-center justify-between mb-3 px-1">
           <h3 className="text-xs font-bold uppercase tracking-wider text-stone-400">
