@@ -28,6 +28,7 @@ import {
   VerseBlock,
   BibleReferenceMatch,
 } from '../types/journal';
+import { AudioPlayer } from './AudioPlayer';
 import { segmentTextWithReferences, parseBibleReferences } from '../utils/bibleParser';
 import { BibleVersePopup } from './BibleVersePopup';
 import { VoiceRecorderModal } from './VoiceRecorderModal';
@@ -40,54 +41,6 @@ interface NoteEditorScreenProps {
   onDelete: (entryId: string) => void;
   onBack: () => void;
   darkMode: boolean;
-}
-
-// Audio Synthesizer helper for clear audible tone playback when offline or simulated
-function playSyntheticVoiceNoteTones(durationSeconds: number, onEnd: () => void) {
-  try {
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioCtx) {
-      const timer = setTimeout(onEnd, durationSeconds * 1000);
-      return () => clearTimeout(timer);
-    }
-    const ctx = new AudioCtx();
-    const now = ctx.currentTime;
-    const notes = [261.63, 329.63, 392.00, 523.25, 440.00, 349.23, 329.63, 293.66];
-    const totalBeats = Math.max(Math.floor(durationSeconds * 2), 4);
-
-    for (let i = 0; i < totalBeats; i++) {
-      const noteTime = now + i * 0.5;
-      if (noteTime >= now + durationSeconds) break;
-
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(notes[i % notes.length], noteTime);
-
-      gain.gain.setValueAtTime(0.18, noteTime);
-      gain.gain.exponentialRampToValueAtTime(0.0001, noteTime + 0.45);
-
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-
-      osc.start(noteTime);
-      osc.stop(noteTime + 0.48);
-    }
-
-    const timer = setTimeout(() => {
-      ctx.close().catch(() => {});
-      onEnd();
-    }, durationSeconds * 1000);
-
-    return () => {
-      clearTimeout(timer);
-      ctx.close().catch(() => {});
-    };
-  } catch {
-    const timer = setTimeout(onEnd, durationSeconds * 1000);
-    return () => clearTimeout(timer);
-  }
 }
 
 // Sub-component for clean, auto-expanding Text Block with inline red Scripture links & atomic tag deletion
@@ -269,16 +222,11 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
   // Audio Playback state & refs
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
-  const synthStopRef = useRef<(() => void) | null>(null);
 
   const stopCurrentAudio = () => {
     if (activeAudioRef.current) {
       activeAudioRef.current.pause();
       activeAudioRef.current = null;
-    }
-    if (synthStopRef.current) {
-      synthStopRef.current();
-      synthStopRef.current = null;
     }
   };
 
@@ -476,31 +424,19 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
 
           audio.onerror = () => {
             activeAudioRef.current = null;
-            synthStopRef.current = playSyntheticVoiceNoteTones(
-              voiceBlock.durationSeconds || 10,
-              () => setPlayingVoiceId(null)
-            );
+            setPlayingVoiceId(null);
           };
 
           audio.play().then(() => {
             playedReal = true;
           }).catch(() => {
             activeAudioRef.current = null;
-            synthStopRef.current = playSyntheticVoiceNoteTones(
-              voiceBlock.durationSeconds || 10,
-              () => setPlayingVoiceId(null)
-            );
+            setPlayingVoiceId(null);
           });
         } catch {
           activeAudioRef.current = null;
+          setPlayingVoiceId(null);
         }
-      }
-
-      if (!playedReal && !activeAudioRef.current) {
-        synthStopRef.current = playSyntheticVoiceNoteTones(
-          voiceBlock.durationSeconds || 10,
-          () => setPlayingVoiceId(null)
-        );
       }
     }
   };
@@ -705,49 +641,14 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                   </div>
                 )}
 
-                {/* 4. VOICE BLOCK - Clean Audio Pill matching user screenshot */}
+                {/* 4. VOICE BLOCK - Feature-rich Audio Player with progress timeline, scrubbing, and speed control */}
                 {block.type === 'voice' && (
-                  <div className="my-3 px-4 py-3 rounded-2xl bg-amber-100/70 dark:bg-amber-950/40 border border-amber-200/60 dark:border-amber-900/40 flex items-center justify-between gap-4 shadow-2xs text-amber-900 dark:text-amber-200">
-                    <div className="flex items-center gap-3 flex-1">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleToggleVoicePlay(block);
-                        }}
-                        className={`p-2.5 rounded-full text-amber-800 dark:text-amber-100 bg-amber-200 dark:bg-amber-900/80 hover:scale-105 active:scale-95 transition-all ${
-                          playingVoiceId === block.id ? 'animate-pulse text-red-600' : ''
-                        }`}
-                      >
-                        {playingVoiceId === block.id ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
-                      </button>
-
-                      <span className="font-mono font-bold text-sm text-amber-800 dark:text-amber-300">
-                        00:{block.durationSeconds.toString().padStart(2, '0')}
-                      </span>
-
-                      {/* Stylized Audio Waveform Dots */}
-                      <div className="flex-1 flex items-center gap-0.5 opacity-60 overflow-hidden h-4">
-                        {[40, 70, 30, 90, 60, 100, 40, 80, 50, 90, 70, 30, 80, 50, 100, 40, 60, 80, 30, 70, 90, 50].map((h, i) => (
-                          <div
-                            key={i}
-                            style={{ height: `${h}%` }}
-                            className={`w-0.5 rounded-full ${playingVoiceId === block.id ? 'bg-amber-600 dark:bg-amber-400 animate-pulse' : 'bg-amber-700/50 dark:bg-amber-400/50'}`}
-                          />
-                        ))}
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteBlock(index);
-                      }}
-                      className="p-1.5 rounded-lg text-amber-700/60 dark:text-amber-400/60 hover:text-red-500 transition-colors"
-                      title="Delete voice note"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                  <AudioPlayer
+                    src={block.audioUrl}
+                    durationSeconds={block.durationSeconds}
+                    title={block.title || 'Voice Note'}
+                    onDelete={() => handleDeleteBlock(index)}
+                  />
                 )}
 
                 {/* 5. DRAWING BLOCK - Clean Sketch Container */}

@@ -681,6 +681,11 @@ function saveToStoredCache(cacheKey: string, text: string) {
   try {
     const cache = getStoredCache();
     cache[cacheKey] = sanitizeVerseText(text);
+    // Keep max 100 verse entries in localStorage to avoid quota limits
+    const keys = Object.keys(cache);
+    if (keys.length > 100) {
+      delete cache[keys[0]];
+    }
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cache));
   } catch (e) {
     console.warn('Failed to save verse to localStorage cache:', e);
@@ -692,6 +697,13 @@ function saveBatchToStoredCache(entries: Record<string, string>) {
     const cache = getStoredCache();
     for (const [key, val] of Object.entries(entries)) {
       cache[key] = sanitizeVerseText(val);
+    }
+    const keys = Object.keys(cache);
+    if (keys.length > 100) {
+      const extra = keys.length - 100;
+      for (let i = 0; i < extra; i++) {
+        delete cache[keys[i]];
+      }
     }
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cache));
   } catch (e) {

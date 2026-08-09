@@ -4,6 +4,53 @@ const STORAGE_KEY_ENTRIES = 'bible_journal_entries_v2';
 const STORAGE_KEY_THEME = 'bible_journal_theme_v1';
 const STORAGE_KEY_TRANSLATION = 'bible_journal_translation_v1';
 
+const DB_NAME = 'BibleJournalDB_v2';
+const DB_STORE = 'journal_entries';
+
+// Dynamic 1-second 440Hz chime WAV data URL helper for starter voice notes
+function createSampleWavDataUrl(): string {
+  try {
+    const sampleRate = 8000;
+    const duration = 1;
+    const numSamples = sampleRate * duration;
+    const headerSize = 44;
+    const buffer = new Uint8Array(headerSize + numSamples);
+    const view = new DataView(buffer.buffer);
+
+    const writeString = (offset: number, str: string) => {
+      for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+    };
+
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + numSamples, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate, true);
+    view.setUint16(32, 1, true);
+    view.setUint16(34, 8, true);
+    writeString(36, 'data');
+    view.setUint32(40, numSamples, true);
+
+    for (let i = 0; i < numSamples; i++) {
+      const t = i / sampleRate;
+      const sample = Math.sin(2 * Math.PI * 440 * t) * Math.exp(-3 * t);
+      buffer[headerSize + i] = Math.floor((sample + 1) * 127.5);
+    }
+
+    let binary = '';
+    for (let i = 0; i < buffer.length; i++) {
+      binary += String.fromCharCode(buffer[i]);
+    }
+    return 'data:audio/wav;base64,' + btoa(binary);
+  } catch {
+    return '';
+  }
+}
+
 // Sample starter entries demonstrating all features
 const STARTER_ENTRIES: JournalEntry[] = [
   {
@@ -74,9 +121,9 @@ const STARTER_ENTRIES: JournalEntry[] = [
       {
         id: 'b8',
         type: 'voice',
-        audioUrl: '', // Will play synthetic voice note demo or real recording
-        durationSeconds: 28,
-        title: 'Faith & Hope Reflection.m4a',
+        audioUrl: createSampleWavDataUrl(),
+        durationSeconds: 1,
+        title: 'Faith & Hope Reflection.wav',
         createdAt: new Date(Date.now() - 3600000 * 24 * 3).toISOString(),
       },
       {
@@ -88,26 +135,98 @@ const STARTER_ENTRIES: JournalEntry[] = [
   },
 ];
 
+// IndexedDB Helper
+function openDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') {
+      reject(new Error('IndexedDB not supported'));
+      return;
+    }
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(DB_STORE)) {
+        db.createObjectStore(DB_STORE, { keyPath: 'id' });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+// In-memory entries cache for instant UI rendering
+let inMemoryEntries: JournalEntry[] | null = null;
+
 export function getStoredEntries(): JournalEntry[] {
+  if (inMemoryEntries) {
+    return inMemoryEntries;
+  }
+
   try {
     const data = localStorage.getItem(STORAGE_KEY_ENTRIES);
-    if (!data) {
-      // First time initialization with starter entries
-      localStorage.setItem(STORAGE_KEY_ENTRIES, JSON.stringify(STARTER_ENTRIES));
-      return STARTER_ENTRIES;
+    if (data) {
+      inMemoryEntries = JSON.parse(data);
+      // Background async sync with IndexedDB to load full audio if truncated in localStorage
+      loadEntriesFromIndexedDB();
+      return inMemoryEntries!;
     }
-    return JSON.parse(data);
   } catch (err) {
     console.error('Failed to parse stored entries:', err);
-    return STARTER_ENTRIES;
   }
+
+  inMemoryEntries = STARTER_ENTRIES;
+  saveStoredEntries(inMemoryEntries);
+  return inMemoryEntries;
+}
+
+async function loadEntriesFromIndexedDB() {
+  try {
+    const db = await openDB();
+    const tx = db.transaction(DB_STORE, 'readonly');
+    const store = tx.objectStore(DB_STORE);
+    const request = store.getAll();
+    request.onsuccess = () => {
+      const dbEntries = request.result as JournalEntry[];
+      if (dbEntries && dbEntries.length > 0) {
+        inMemoryEntries = dbEntries;
+      }
+    };
+  } catch (_) {}
 }
 
 export function saveStoredEntries(entries: JournalEntry[]): void {
+  inMemoryEntries = entries;
+
+  // 1. Save to IndexedDB (unlimited quota for audio & images)
+  openDB().then((db) => {
+    const tx = db.transaction(DB_STORE, 'readwrite');
+    const store = tx.objectStore(DB_STORE);
+    store.clear();
+    entries.forEach((e) => store.put(e));
+  }).catch((err) => {
+    console.warn('IndexedDB save warning:', err);
+  });
+
+  // 2. Save to LocalStorage safely (prevent QuotaExceededError crashes)
   try {
     localStorage.setItem(STORAGE_KEY_ENTRIES, JSON.stringify(entries));
   } catch (err) {
-    console.error('Failed to save entries to storage:', err);
+    console.warn('LocalStorage limit reached. Full entry stored in IndexedDB:', err);
+    try {
+      // Stripping heavy base64 strings for localStorage fallback
+      const lightweight = entries.map((e) => ({
+        ...e,
+        blocks: e.blocks.map((b) => {
+          if (b.type === 'voice' && b.audioUrl && b.audioUrl.length > 10000) {
+            return { ...b, audioUrl: '' };
+          }
+          return b;
+        }),
+      }));
+      localStorage.setItem(STORAGE_KEY_ENTRIES, JSON.stringify(lightweight));
+    } catch (_) {
+      // Ignore quota fallback error as IndexedDB holds full data
+    }
   }
 }
 
