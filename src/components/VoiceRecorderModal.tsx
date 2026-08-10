@@ -8,20 +8,66 @@ interface VoiceRecorderModalProps {
   onSaveVoiceNote: (voiceBlock: VoiceBlock) => void;
 }
 
+// Helper to construct a realistic 16-bit PCM WAV audio Blob via Web Audio synthesis
+function createSampleAudioBlob(durationSeconds: number): Blob {
+  const sampleRate = 22050;
+  const numSamples = Math.max(Math.floor(sampleRate * durationSeconds), sampleRate);
+  const buffer = new Float32Array(numSamples);
+
+  for (let i = 0; i < numSamples; i++) {
+    const t = i / sampleRate;
+    const speechCadence = Math.sin(t * 6) * 0.5 + 0.5;
+    const fundamental = Math.sin(2 * Math.PI * 220 * t);
+    const harmonic1 = Math.sin(2 * Math.PI * 440 * t) * 0.4;
+    const harmonic2 = Math.sin(2 * Math.PI * 660 * t) * 0.2;
+    buffer[i] = (fundamental + harmonic1 + harmonic2) * 0.3 * speechCadence;
+  }
+
+  const wavBuffer = new ArrayBuffer(44 + numSamples * 2);
+  const view = new DataView(wavBuffer);
+
+  const writeString = (offset: number, str: string) => {
+    for (let i = 0; i < str.length; i++) {
+      view.setUint8(offset + i, str.charCodeAt(i));
+    }
+  };
+
+  writeString(0, 'RIFF');
+  view.setUint32(4, 36 + numSamples * 2, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeString(36, 'data');
+  view.setUint32(40, numSamples * 2, true);
+
+  let offset = 44;
+  for (let i = 0; i < numSamples; i++) {
+    const s = Math.max(-1, Math.min(1, buffer[i]));
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    offset += 2;
+  }
+
+  return new Blob([wavBuffer], { type: 'audio/wav' });
+}
+
 export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({ onClose, onSaveVoiceNote }) => {
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [recordingTime, setRecordingTime] = useState<number>(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioUrl, setAudioUrl] = useState<string>('');
   const [permissionError, setPermissionError] = useState<string>('');
-
-  const [hasStarted, setHasStarted] = useState<boolean>(false);
+  const [isSimulatedMode, setIsSimulatedMode] = useState<boolean>(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Attempt recording on modal mount
   useEffect(() => {
     startRealRecording();
 
@@ -48,26 +94,47 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({ onClose,
     }
   };
 
+  const startSimulatedRecording = () => {
+    setPermissionError('');
+    setAudioUrl('');
+    setAudioBlob(null);
+    setIsSimulatedMode(true);
+    setIsRecording(true);
+    startTimer();
+  };
+
   const startRealRecording = async () => {
     setPermissionError('');
     setAudioUrl('');
     setAudioBlob(null);
+    setIsSimulatedMode(false);
 
-    // Check secure context
-    if (typeof window !== 'undefined' && window.isSecureContext === false && location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+    if (
+      typeof window !== 'undefined' &&
+      window.isSecureContext === false &&
+      location.protocol !== 'https:' &&
+      location.hostname !== 'localhost' &&
+      location.hostname !== '127.0.0.1'
+    ) {
       setPermissionError('Microphone recording requires a secure (HTTPS) connection.');
       return;
     }
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setPermissionError('Microphone recording is not supported or allowed in this browser view.');
+      setPermissionError('Microphone API is not supported or is restricted in this WebView/frame container.');
       return;
     }
 
+    // Check if running inside Android WebView / Capacitor
+    const isCapacitorOrWebView =
+      typeof window !== 'undefined' &&
+      ((window as any).Capacitor ||
+        /Capacitor|Android|wv/i.test(navigator.userAgent));
+
     try {
-      // Direct user gesture request for audio permission
+      // Prompt for audio stream via getUserMedia
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
+
       let mimeType = '';
       if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported) {
         if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
@@ -94,15 +161,10 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({ onClose,
       };
 
       mediaRecorderRef.current.onstop = () => {
-        const finalType = mimeType || (audioChunksRef.current[0]?.type) || 'audio/webm';
+        const finalType = mimeType || audioChunksRef.current[0]?.type || 'audio/webm';
         const blob = new Blob(audioChunksRef.current, { type: finalType });
         setAudioBlob(blob);
 
-        // Create direct Blob URL for instant native audio playback
-        const blobUrl = URL.createObjectURL(blob);
-        setAudioUrl(blobUrl);
-
-        // Convert Blob to Base64 Data URL for persistent storage
         const reader = new FileReader();
         reader.onloadend = () => {
           const base64data = reader.result as string;
@@ -112,25 +174,22 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({ onClose,
         };
         reader.readAsDataURL(blob);
 
-        // Stop stream tracks to free microphone
         stream.getTracks().forEach((track) => track.stop());
       };
 
-      // Start continuous recording without fragmentation
       mediaRecorderRef.current.start();
       setIsRecording(true);
-      setHasStarted(true);
       startTimer();
     } catch (err: any) {
       console.warn('Microphone permission error:', err);
       setIsRecording(false);
-      
+
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        setPermissionError('Microphone permission is blocked or was denied. Tap "Allow Microphone Access" below to request permission, or enable microphone in app/site settings.');
+        setPermissionError('Microphone access was blocked by your browser frame settings.');
       } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-        setPermissionError('No microphone detected on your device.');
+        setPermissionError('No physical microphone was detected on your system.');
       } else {
-        setPermissionError('Microphone permission is required to record voice notes. Tap "Allow Microphone Access" below.');
+        setPermissionError('Microphone permission is restricted in this browser preview.');
       }
     }
   };
@@ -139,7 +198,20 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({ onClose,
     setIsRecording(false);
     stopTimer();
 
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+    if (isSimulatedMode) {
+      const duration = recordingTime > 0 ? recordingTime : 2;
+      const sampleBlob = createSampleAudioBlob(duration);
+      setAudioBlob(sampleBlob);
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64data = reader.result as string;
+        if (base64data) {
+          setAudioUrl(base64data);
+        }
+      };
+      reader.readAsDataURL(sampleBlob);
+    } else if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.stop();
     }
   };
@@ -185,28 +257,38 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({ onClose,
         <h3 className="text-lg font-bold text-white">Voice Journal Note</h3>
         <p className="text-xs text-stone-400 mt-1 mb-4">
           {isRecording
-            ? 'Recording audio...'
+            ? isSimulatedMode
+              ? 'Recording simulated audio note...'
+              : 'Recording audio...'
             : audioUrl
             ? 'Audio note recorded'
             : permissionError
-            ? 'Microphone permission required'
+            ? 'Microphone restricted in browser frame'
             : 'Tap button below to start recording'}
         </p>
 
         {permissionError && (
-          <div className="w-full bg-red-950/60 border border-red-800/80 rounded-xl p-3 mb-4 text-red-200 text-xs flex flex-col gap-2 text-left">
+          <div className="w-full bg-red-950/60 border border-red-800/80 rounded-2xl p-3.5 mb-4 text-red-200 text-xs flex flex-col gap-2.5 text-left">
             <div className="flex items-center gap-2">
               <AlertCircle className="w-5 h-5 shrink-0 text-red-400" />
-              <span className="font-semibold text-red-300">Permission Action Needed</span>
+              <span className="font-semibold text-red-300">Browser Frame Permission Limit</span>
             </div>
-            <p className="text-stone-300 leading-relaxed">{permissionError}</p>
-            <button
-              onClick={() => startRealRecording()}
-              className="mt-1 w-full py-2 px-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-md transition-transform active:scale-95"
-            >
-              <Mic className="w-4 h-4" />
-              <span>Grant Microphone Access & Record</span>
-            </button>
+            <p className="text-stone-300 leading-relaxed text-[11px]">{permissionError}</p>
+            <div className="flex flex-col gap-2 mt-1">
+              <button
+                onClick={() => startSimulatedRecording()}
+                className="w-full py-2.5 px-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-md transition-transform active:scale-95"
+              >
+                <Mic className="w-4 h-4" />
+                <span>Record Demo Voice Note (Web Audio)</span>
+              </button>
+              <button
+                onClick={() => startRealRecording()}
+                className="w-full py-2 px-3 bg-stone-800 hover:bg-stone-700 text-stone-300 font-semibold rounded-xl text-[11px] flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <span>Retry Hardware Mic Access</span>
+              </button>
+            </div>
           </div>
         )}
 
@@ -221,9 +303,7 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({ onClose,
             <div
               key={i}
               className={`w-1.5 bg-red-500 rounded-full transition-all duration-300 ${
-                isRecording
-                  ? `animate-bounce h-${(i % 3) * 4 + 4}`
-                  : 'h-2 bg-stone-700'
+                isRecording ? `animate-bounce h-${(i % 3) * 4 + 4}` : 'h-2 bg-stone-700'
               }`}
               style={{
                 animationDelay: `${i * 0.15}s`,
@@ -236,11 +316,7 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({ onClose,
         {/* Interactive Audio Player Preview when recording is stopped */}
         {!isRecording && audioUrl && (
           <div className="w-full my-2 text-left">
-            <AudioPlayer
-              src={audioUrl}
-              durationSeconds={recordingTime}
-              title="Recorded Audio Preview"
-            />
+            <AudioPlayer src={audioUrl} durationSeconds={recordingTime} title="Recorded Audio Preview" />
           </div>
         )}
 

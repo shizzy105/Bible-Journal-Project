@@ -36,7 +36,12 @@ import {
   BibleReferenceMatch,
 } from '../types/journal';
 import { AudioPlayer } from './AudioPlayer';
-import { segmentTextWithReferences, parseBibleReferences } from '../utils/bibleParser';
+import {
+  segmentTextWithReferences,
+  parseBibleReferences,
+  processHtmlWithReferences,
+  createRefChipHtml,
+} from '../utils/bibleParser';
 import { BibleVersePopup } from './BibleVersePopup';
 import { VoiceRecorderModal } from './VoiceRecorderModal';
 import { DrawingCanvasModal } from './DrawingCanvasModal';
@@ -87,31 +92,7 @@ const TextBlockItem: React.FC<TextBlockItemProps> = ({
   // Helper to construct HTML from text content containing bible references while preserving rich text markup
   const buildHtmlFromText = (text: string) => {
     if (!text) return '';
-    // If text already contains data-ref or rich HTML markup, preserve it directly
-    if (
-      text.includes('data-ref') ||
-      text.includes('<b') ||
-      text.includes('<i') ||
-      text.includes('<u') ||
-      text.includes('<mark') ||
-      text.includes('<font') ||
-      text.includes('style=') ||
-      text.includes('<div')
-    ) {
-      return text;
-    }
-
-    const segments = segmentTextWithReferences(text);
-    return segments
-      .map((seg) => {
-        if (seg.type === 'bibleRef' && seg.match) {
-          const escapedContent = seg.content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-          return `<span contenteditable="false" data-ref="${escapedContent}" class="inline-flex items-center gap-1 mx-1 my-0 px-2 py-[2px] rounded-md bg-red-100/90 dark:bg-red-950/70 border border-red-200/80 dark:border-red-900/80 text-red-600 dark:text-red-400 font-semibold text-[0.9em] leading-tight align-baseline select-none cursor-pointer"><span class="ref-click-btn inline-flex items-center gap-1 hover:underline"><svg class="w-3.5 h-3.5 inline shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg><span>${escapedContent}</span></span><span class="ref-delete-btn p-0.5 rounded-full hover:bg-red-200 dark:hover:bg-red-900 text-red-500 transition-colors ml-0.5 cursor-pointer" title="Remove reference">✕</span></span>`;
-        } else {
-          return seg.content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br/>');
-        }
-      })
-      .join('');
+    return processHtmlWithReferences(text);
   };
 
   // Sync content updates
@@ -148,29 +129,16 @@ const TextBlockItem: React.FC<TextBlockItemProps> = ({
 
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
-    // Clicked on scripture text or icon -> Open Verse Reader
-    const refClickBtn = target.closest('.ref-click-btn');
-    if (refClickBtn) {
+    // Clicked on scripture tag -> Open Verse Reader
+    const refSpan = target.closest('[data-ref]');
+    if (refSpan) {
       e.stopPropagation();
-      const parentSpan = target.closest('[data-ref]');
-      const refStr = parentSpan?.getAttribute('data-ref');
+      const refStr = refSpan.getAttribute('data-ref');
       if (refStr) {
         const matches = parseBibleReferences(refStr);
         if (matches.length > 0) {
           onOpenVerse(matches[0]);
         }
-      }
-      return;
-    }
-
-    // Clicked on '✕' delete button -> Remove tag from text
-    const refDeleteBtn = target.closest('.ref-delete-btn');
-    if (refDeleteBtn) {
-      e.stopPropagation();
-      const parentSpan = target.closest('[data-ref]');
-      if (parentSpan) {
-        parentSpan.remove();
-        handleInput();
       }
       return;
     }
@@ -374,13 +342,15 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
 
   // Insert Reference (e.g. Matt 5 v 7-20) into active text block or as text
   const handleInsertReferenceText = (refText: string) => {
-    const formattedRef = `${refText.trim()} `;
+    const trimmed = refText.trim();
+    if (!trimmed) return;
+    const chipHtml = createRefChipHtml(trimmed) + '&nbsp;';
 
     if (blocks.length === 0) {
       const newBlock: TextBlock = {
         id: `text-${Date.now()}`,
         type: 'text',
-        content: formattedRef,
+        content: chipHtml,
       };
       setBlocks([newBlock]);
       setActiveBlockIndex(0);
@@ -391,14 +361,14 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
       if (targetBlock && targetBlock.type === 'text') {
         setBlocks((prev) =>
           prev.map((b, i) =>
-            i === targetIdx ? { ...b, content: (b.content ? b.content + ' ' : '') + formattedRef } : b
+            i === targetIdx ? { ...b, content: (b.content ? b.content + ' ' : '') + chipHtml } : b
           )
         );
       } else {
         const newBlock: TextBlock = {
           id: `text-${Date.now()}`,
           type: 'text',
-          content: formattedRef,
+          content: chipHtml,
         };
         insertBlockAt(newBlock, targetIdx);
       }

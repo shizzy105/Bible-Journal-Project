@@ -131,3 +131,72 @@ export function segmentTextWithReferences(text: string): TextSegment[] {
 
   return segments;
 }
+
+export function stripHtmlTags(html: string): string {
+  if (!html) return '';
+  try {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    return doc.body.textContent || '';
+  } catch {
+    return html.replace(/<[^>]*>/g, '');
+  }
+}
+
+export function createRefChipHtml(refText: string): string {
+  const escapedContent = refText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return `<span contenteditable="false" data-ref="${escapedContent}" class="inline-flex items-center mx-1 my-0 px-2 py-[2px] rounded-md bg-red-100/90 dark:bg-red-950/70 border border-red-200/80 dark:border-red-900/80 text-red-600 dark:text-red-400 font-semibold text-[0.9em] leading-tight align-baseline select-none cursor-pointer"><span class="ref-click-btn inline-flex items-center hover:underline">${escapedContent}</span></span>`;
+}
+
+export function processHtmlWithReferences(html: string): string {
+  if (!html) return '';
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(`<div>${html}</div>`, 'text/html');
+    const container = doc.body.firstElementChild;
+    if (!container) return html;
+
+    const walk = (node: Node) => {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as HTMLElement;
+        if (el.hasAttribute('data-ref') || el.closest('[data-ref]')) {
+          return;
+        }
+      }
+
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.nodeValue || '';
+        const matches = parseBibleReferences(text);
+        if (matches.length > 0) {
+          const frag = doc.createDocumentFragment();
+          let lastIndex = 0;
+          matches.forEach((m) => {
+            if (m.startIndex > lastIndex) {
+              frag.appendChild(doc.createTextNode(text.slice(lastIndex, m.startIndex)));
+            }
+            const wrapper = doc.createElement('div');
+            wrapper.innerHTML = createRefChipHtml(m.fullMatch);
+            if (wrapper.firstElementChild) {
+              frag.appendChild(wrapper.firstElementChild);
+            } else {
+              frag.appendChild(doc.createTextNode(m.fullMatch));
+            }
+            lastIndex = m.endIndex;
+          });
+          if (lastIndex < text.length) {
+            frag.appendChild(doc.createTextNode(text.slice(lastIndex)));
+          }
+          node.parentNode?.replaceChild(frag, node);
+        }
+        return;
+      }
+
+      const children = Array.from(node.childNodes);
+      children.forEach((child) => walk(child));
+    };
+
+    walk(container);
+    return container.innerHTML;
+  } catch {
+    return html;
+  }
+}

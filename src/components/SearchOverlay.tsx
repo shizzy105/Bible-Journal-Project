@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Search, X, BookOpen, Mic, Edit3, Calendar, FileText } from 'lucide-react';
 import { JournalEntry } from '../types/journal';
-import { parseBibleReferences } from '../utils/bibleParser';
+import { parseBibleReferences, stripHtmlTags } from '../utils/bibleParser';
 
 interface SearchOverlayProps {
   entries: JournalEntry[];
@@ -27,7 +27,7 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
     const dateMatch = entry.dateString.includes(lowerQuery);
 
     const fullContent = entry.blocks
-      .map((b) => (b.type === 'text' ? b.content : ''))
+      .map((b) => (b.type === 'text' ? stripHtmlTags(b.content) : ''))
       .join(' ')
       .toLowerCase();
 
@@ -146,8 +146,8 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
             const hasVoice = entry.blocks.some((b) => b.type === 'voice');
             const hasDrawing = entry.blocks.some((b) => b.type === 'drawing');
 
-            const textSnippet =
-              entry.blocks.find((b) => b.type === 'text')?.content || 'No text content';
+            const rawSnippet = entry.blocks.find((b) => b.type === 'text')?.content || '';
+            const textSnippet = stripHtmlTags(rawSnippet) || 'No text content';
 
             return (
               <div

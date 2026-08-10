@@ -17,7 +17,7 @@ import {
   Settings,
 } from 'lucide-react';
 import { JournalEntry } from '../types/journal';
-import { parseBibleReferences } from '../utils/bibleParser';
+import { parseBibleReferences, stripHtmlTags } from '../utils/bibleParser';
 
 interface HomeScreenProps {
   entries: JournalEntry[];
@@ -138,9 +138,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             {sortedEntries.map((entry) => {
               const firstTextBlock = entry.blocks.find((b) => b.type === 'text')?.content || '';
+              const cleanSnippet = stripHtmlTags(firstTextBlock);
               const hasVoice = entry.blocks.some((b) => b.type === 'voice');
               const hasDrawing = entry.blocks.some((b) => b.type === 'drawing');
-              const references = parseBibleReferences(firstTextBlock);
+              const references = parseBibleReferences(cleanSnippet);
 
               return (
                 <div
@@ -186,7 +187,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
                     {/* Content Snippet */}
                     <p className="text-xs text-stone-500 dark:text-stone-400 line-clamp-3 font-serif leading-relaxed mb-3">
-                      {firstTextBlock || 'No text content added yet...'}
+                      {cleanSnippet || 'No text content added yet...'}
                     </p>
                   </div>
 

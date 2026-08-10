@@ -37,6 +37,43 @@ const ANDROID_FILES = [
 `,
   },
   {
+    name: 'CapacitorMainActivity.kt',
+    language: 'kotlin',
+    code: `package com.biblejournal
+
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Bundle
+import android.webkit.PermissionRequest
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import com.getcapacitor.BridgeActivity
+import com.getcapacitor.BridgeWebChromeClient
+
+class MainActivity : BridgeActivity() {
+    private val RECORD_AUDIO_REQUEST_CODE = 101
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        // 1. Request OS runtime microphone permission on App Launch
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), RECORD_AUDIO_REQUEST_CODE)
+        }
+
+        // 2. Override Capacitor WebChromeClient to grant web getUserMedia permissions to WebView
+        bridge?.webView?.webChromeClient = object : BridgeWebChromeClient(bridge) {
+            override fun onPermissionRequest(request: PermissionRequest) {
+                runOnUiThread {
+                    request.grant(request.resources)
+                }
+            }
+        }
+    }
+}
+`,
+  },
+  {
     name: 'MainActivity.kt',
     language: 'kotlin',
     code: `package com.biblejournal
