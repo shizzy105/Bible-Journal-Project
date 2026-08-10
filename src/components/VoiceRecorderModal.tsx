@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, Square, X, Check, AlertCircle } from 'lucide-react';
+import { Mic, Square, X, Check, AlertCircle, Settings, RefreshCw } from 'lucide-react';
+import { VoiceRecorder } from 'capacitor-voice-recorder';
+import { Capacitor } from '@capacitor/core';
 import { VoiceBlock } from '../types/journal';
 import { AudioPlayer } from './AudioPlayer';
 
@@ -8,76 +10,55 @@ interface VoiceRecorderModalProps {
   onSaveVoiceNote: (voiceBlock: VoiceBlock) => void;
 }
 
-// Helper to construct a realistic 16-bit PCM WAV audio Blob via Web Audio synthesis
-function createSampleAudioBlob(durationSeconds: number): Blob {
-  const sampleRate = 22050;
-  const numSamples = Math.max(Math.floor(sampleRate * durationSeconds), sampleRate);
-  const buffer = new Float32Array(numSamples);
-
-  for (let i = 0; i < numSamples; i++) {
-    const t = i / sampleRate;
-    const speechCadence = Math.sin(t * 6) * 0.5 + 0.5;
-    const fundamental = Math.sin(2 * Math.PI * 220 * t);
-    const harmonic1 = Math.sin(2 * Math.PI * 440 * t) * 0.4;
-    const harmonic2 = Math.sin(2 * Math.PI * 660 * t) * 0.2;
-    buffer[i] = (fundamental + harmonic1 + harmonic2) * 0.3 * speechCadence;
-  }
-
-  const wavBuffer = new ArrayBuffer(44 + numSamples * 2);
-  const view = new DataView(wavBuffer);
-
-  const writeString = (offset: number, str: string) => {
-    for (let i = 0; i < str.length; i++) {
-      view.setUint8(offset + i, str.charCodeAt(i));
-    }
-  };
-
-  writeString(0, 'RIFF');
-  view.setUint32(4, 36 + numSamples * 2, true);
-  writeString(8, 'WAVE');
-  writeString(12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  writeString(36, 'data');
-  view.setUint32(40, numSamples * 2, true);
-
-  let offset = 44;
-  for (let i = 0; i < numSamples; i++) {
-    const s = Math.max(-1, Math.min(1, buffer[i]));
-    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-    offset += 2;
-  }
-
-  return new Blob([wavBuffer], { type: 'audio/wav' });
-}
-
 export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({ onClose, onSaveVoiceNote }) => {
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [recordingTime, setRecordingTime] = useState<number>(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioUrl, setAudioUrl] = useState<string>('');
   const [permissionError, setPermissionError] = useState<string>('');
-  const [isSimulatedMode, setIsSimulatedMode] = useState<boolean>(false);
+  const [permissionState, setPermissionState] = useState<'prompt' | 'granted' | 'denied' | 'unknown'>('unknown');
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const useNativePluginRef = useRef<boolean>(false);
 
   useEffect(() => {
+    checkPermissionStatus();
     startRealRecording();
 
     return () => {
       stopTimer();
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      if (useNativePluginRef.current) {
+        VoiceRecorder.stopRecording().catch(() => {});
+      } else if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
         mediaRecorderRef.current.stop();
       }
     };
   }, []);
+
+  const checkPermissionStatus = async () => {
+    try {
+      if (Capacitor.isNativePlatform()) {
+        const hasPerm = await VoiceRecorder.hasAudioRecordingPermission();
+        setPermissionState(hasPerm.value ? 'granted' : 'prompt');
+        return;
+      }
+
+      if (navigator.permissions && navigator.permissions.query) {
+        const res = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+        setPermissionState(res.state as 'prompt' | 'granted' | 'denied');
+        res.onchange = () => {
+          setPermissionState(res.state as 'prompt' | 'granted' | 'denied');
+          if (res.state === 'granted') {
+            setPermissionError('');
+          }
+        };
+      }
+    } catch {
+      // Permission query not supported in all environments
+    }
+  };
 
   const startTimer = () => {
     stopTimer();
@@ -94,21 +75,43 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({ onClose,
     }
   };
 
-  const startSimulatedRecording = () => {
-    setPermissionError('');
-    setAudioUrl('');
-    setAudioBlob(null);
-    setIsSimulatedMode(true);
-    setIsRecording(true);
-    startTimer();
-  };
-
   const startRealRecording = async () => {
     setPermissionError('');
     setAudioUrl('');
     setAudioBlob(null);
-    setIsSimulatedMode(false);
+    useNativePluginRef.current = false;
 
+    // 1. Check Capacitor Native Audio Recording path (Android / iOS app)
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const permResult = await VoiceRecorder.hasAudioRecordingPermission();
+        if (!permResult.value) {
+          const reqResult = await VoiceRecorder.requestAudioRecordingPermission();
+          if (!reqResult.value) {
+            setPermissionError('Microphone permission was denied on Android. Please open Android Settings > Apps > Bible Journal > Permissions and enable Microphone.');
+            setPermissionState('denied');
+            return;
+          }
+        }
+
+        const canRecord = await VoiceRecorder.canDeviceVoiceRecord();
+        if (!canRecord.value) {
+          setPermissionError('Audio recording is not supported on this mobile device.');
+          return;
+        }
+
+        await VoiceRecorder.startRecording();
+        useNativePluginRef.current = true;
+        setPermissionState('granted');
+        setIsRecording(true);
+        startTimer();
+        return;
+      } catch (err: any) {
+        console.warn('Native Capacitor VoiceRecorder failed, falling back to getUserMedia:', err);
+      }
+    }
+
+    // 2. Standard Browser Web Audio Path (Web / Dev Preview)
     if (
       typeof window !== 'undefined' &&
       window.isSecureContext === false &&
@@ -121,19 +124,13 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({ onClose,
     }
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setPermissionError('Microphone API is not supported or is restricted in this WebView/frame container.');
+      setPermissionError('Microphone access is not supported by this browser or WebView container.');
       return;
     }
 
-    // Check if running inside Android WebView / Capacitor
-    const isCapacitorOrWebView =
-      typeof window !== 'undefined' &&
-      ((window as any).Capacitor ||
-        /Capacitor|Android|wv/i.test(navigator.userAgent));
-
     try {
-      // Prompt for audio stream via getUserMedia
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setPermissionState('granted');
 
       let mimeType = '';
       if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported) {
@@ -183,35 +180,58 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({ onClose,
     } catch (err: any) {
       console.warn('Microphone permission error:', err);
       setIsRecording(false);
+      setPermissionState('denied');
 
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        setPermissionError('Microphone access was blocked by your browser frame settings.');
+        setPermissionError('Microphone permission was denied or blocked.');
       } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-        setPermissionError('No physical microphone was detected on your system.');
+        setPermissionError('No active microphone device was found on this system.');
       } else {
-        setPermissionError('Microphone permission is restricted in this browser preview.');
+        setPermissionError('Microphone recording failed to initialize.');
       }
     }
   };
 
-  const handleStopRecording = () => {
+  const handleOpenSystemSettings = () => {
+    // Attempt Capacitor native settings open if present
+    if ((window as any).Capacitor?.native?.openSettings) {
+      (window as any).Capacitor.native.openSettings();
+      return;
+    }
+
+    try {
+      window.location.href = 'app-settings:';
+    } catch {
+      // Fallback
+    }
+
+    startRealRecording();
+  };
+
+  const handleStopRecording = async () => {
     setIsRecording(false);
     stopTimer();
 
-    if (isSimulatedMode) {
-      const duration = recordingTime > 0 ? recordingTime : 2;
-      const sampleBlob = createSampleAudioBlob(duration);
-      setAudioBlob(sampleBlob);
-
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64data = reader.result as string;
-        if (base64data) {
-          setAudioUrl(base64data);
+    // 1. Native Capacitor Audio Record Stop
+    if (useNativePluginRef.current) {
+      try {
+        const recordResult = await VoiceRecorder.stopRecording();
+        if (recordResult.value && recordResult.value.recordDataBase64) {
+          const mime = recordResult.value.mimeType || 'audio/aac';
+          const base64Url = `data:${mime};base64,${recordResult.value.recordDataBase64}`;
+          setAudioUrl(base64Url);
+          const durSeconds = Math.round((recordResult.value.msDuration || 0) / 1000) || recordingTime || 1;
+          setRecordingTime(durSeconds);
         }
-      };
-      reader.readAsDataURL(sampleBlob);
-    } else if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        useNativePluginRef.current = false;
+        return;
+      } catch (err) {
+        console.error('Error stopping native recording:', err);
+      }
+    }
+
+    // 2. Web MediaRecorder Stop
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.stop();
     }
   };
@@ -257,13 +277,11 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({ onClose,
         <h3 className="text-lg font-bold text-white">Voice Journal Note</h3>
         <p className="text-xs text-stone-400 mt-1 mb-4">
           {isRecording
-            ? isSimulatedMode
-              ? 'Recording simulated audio note...'
-              : 'Recording audio...'
+            ? 'Recording audio...'
             : audioUrl
             ? 'Audio note recorded'
             : permissionError
-            ? 'Microphone restricted in browser frame'
+            ? 'Microphone permission required'
             : 'Tap button below to start recording'}
         </p>
 
@@ -271,22 +289,29 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({ onClose,
           <div className="w-full bg-red-950/60 border border-red-800/80 rounded-2xl p-3.5 mb-4 text-red-200 text-xs flex flex-col gap-2.5 text-left">
             <div className="flex items-center gap-2">
               <AlertCircle className="w-5 h-5 shrink-0 text-red-400" />
-              <span className="font-semibold text-red-300">Browser Frame Permission Limit</span>
+              <span className="font-semibold text-red-300">Microphone Access Denied</span>
             </div>
             <p className="text-stone-300 leading-relaxed text-[11px]">{permissionError}</p>
+            
+            <div className="bg-stone-950/80 rounded-xl p-2.5 border border-stone-800 text-[10px] text-stone-400 leading-relaxed">
+              <span className="text-red-400 font-bold block mb-0.5">Android App Setup Tip:</span>
+              On Android, open <strong className="text-stone-200">Settings &gt; Apps &gt; Bible Journal &gt; Permissions</strong> and set <strong className="text-stone-200">Microphone</strong> to "Allow while using app".
+            </div>
+
             <div className="flex flex-col gap-2 mt-1">
               <button
-                onClick={() => startSimulatedRecording()}
+                onClick={startRealRecording}
                 className="w-full py-2.5 px-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-md transition-transform active:scale-95"
               >
-                <Mic className="w-4 h-4" />
-                <span>Record Demo Voice Note (Web Audio)</span>
+                <RefreshCw className="w-4 h-4" />
+                <span>Request Microphone Access Again</span>
               </button>
               <button
-                onClick={() => startRealRecording()}
+                onClick={handleOpenSystemSettings}
                 className="w-full py-2 px-3 bg-stone-800 hover:bg-stone-700 text-stone-300 font-semibold rounded-xl text-[11px] flex items-center justify-center gap-1.5 transition-colors"
               >
-                <span>Retry Hardware Mic Access</span>
+                <Settings className="w-3.5 h-3.5 text-stone-400" />
+                <span>Open Device App Settings</span>
               </button>
             </div>
           </div>
@@ -333,7 +358,7 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({ onClose,
           ) : audioUrl ? (
             <div className="flex items-center gap-2 w-full">
               <button
-                onClick={() => startRealRecording()}
+                onClick={startRealRecording}
                 className="py-3 px-3 bg-stone-800 hover:bg-stone-700 text-stone-200 font-semibold rounded-2xl flex items-center justify-center gap-1.5 text-xs transition-transform active:scale-95"
               >
                 <Mic className="w-4 h-4 text-red-400" />
@@ -349,7 +374,7 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({ onClose,
             </div>
           ) : !permissionError ? (
             <button
-              onClick={() => startRealRecording()}
+              onClick={startRealRecording}
               className="w-full py-3.5 px-4 bg-red-600 hover:bg-red-500 text-white font-bold rounded-2xl flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95"
             >
               <Mic className="w-5 h-5" />
@@ -361,3 +386,4 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({ onClose,
     </div>
   );
 };
+

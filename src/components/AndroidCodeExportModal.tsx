@@ -10,12 +10,16 @@ const ANDROID_FILES = [
     name: 'AndroidManifest.xml',
     language: 'xml',
     code: `<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.biblejournal">
 
-    <!-- Audio Recording Permissions for Android -->
+    <!-- REQUIRED MICROPHONE PERMISSIONS FOR ANDROID & CAPACITOR -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
 
     <application
         android:allowBackup="true"
@@ -23,21 +27,28 @@ const ANDROID_FILES = [
         android:label="Bible Journal"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.BibleJournal">
+        android:theme="@style/AppTheme">
+
         <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
             android:name=".MainActivity"
+            android:label="Bible Journal"
+            android:theme="@style/AppTheme.NoActionBar"
+            android:launchMode="singleTask"
             android:exported="true">
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
         </activity>
     </application>
 </manifest>
 `,
   },
   {
-    name: 'CapacitorMainActivity.kt',
+    name: 'MainActivity.kt',
     language: 'kotlin',
     code: `package com.biblejournal
 
@@ -56,16 +67,30 @@ class MainActivity : BridgeActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 1. Request OS runtime microphone permission on App Launch
+        // 1. Explicitly check and request RECORD_AUDIO runtime permission on Android startup
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), RECORD_AUDIO_REQUEST_CODE)
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(
+                    Manifest.permission.RECORD_AUDIO,
+                    Manifest.permission.MODIFY_AUDIO_SETTINGS
+                ),
+                RECORD_AUDIO_REQUEST_CODE
+            )
         }
 
-        // 2. Override Capacitor WebChromeClient to grant web getUserMedia permissions to WebView
+        // 2. Grant WebView media permissions so getUserMedia works inside Capacitor WebView
         bridge?.webView?.webChromeClient = object : BridgeWebChromeClient(bridge) {
             override fun onPermissionRequest(request: PermissionRequest) {
                 runOnUiThread {
-                    request.grant(request.resources)
+                    val resources = request.resources
+                    for (resource in resources) {
+                        if (resource == PermissionRequest.RESOURCE_AUDIO_CAPTURE) {
+                            request.grant(resources)
+                            return@runOnUiThread
+                        }
+                    }
+                    request.grant(resources)
                 }
             }
         }
@@ -74,157 +99,42 @@ class MainActivity : BridgeActivity() {
 `,
   },
   {
-    name: 'MainActivity.kt',
-    language: 'kotlin',
-    code: `package com.biblejournal
-
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Bundle
-import android.webkit.PermissionRequest
-import android.webkit.WebChromeClient
-import android.webkit.WebView
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
-
-class MainActivity : AppCompatActivity() {
-    private val RECORD_AUDIO_REQUEST_CODE = 101
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
-
-        // Request runtime microphone permission
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), RECORD_AUDIO_REQUEST_CODE)
-        }
-
-        val webView: WebView = findViewById(R.id.webView)
-        webView.settings.javaScriptEnabled = true
-        webView.settings.domStorageEnabled = true
-        webView.settings.mediaPlaybackRequiresUserGesture = false
-
-        // Automatically grant WebView audio permission requests
-        webView.webChromeClient = object : WebChromeClient() {
-            override fun onPermissionRequest(request: PermissionRequest) {
-                runOnUiThread {
-                    request.grant(request.resources)
-                }
-            }
-        }
+    name: 'capacitor.config.json',
+    language: 'json',
+    code: `{
+  "appId": "com.biblejournal",
+  "appName": "Bible Journal",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "VoiceRecorder": {
+      "permission": true
     }
+  }
 }
 `,
   },
   {
-    name: 'JournalEntity.kt',
-    language: 'kotlin',
-    code: `package com.biblejournal.data
+    name: 'CapacitorCommands.sh',
+    language: 'bash',
+    code: `# 1. Install dependencies
+npm install @capacitor/core capacitor-voice-recorder
+npm install -D @capacitor/cli @capacitor/android
 
-import androidx.room.Entity
-import androidx.room.PrimaryKey
-import java.util.Date
+# 2. Build web bundle
+npm run build
 
-@Entity(tableName = "journal_entries")
-data class JournalEntity(
-    @PrimaryKey val id: String,
-    val title: String,
-    val dateString: String,
-    val contentJson: String, // Mixed blocks: text, voice, sketch
-    val isPinned: Boolean = false,
-    val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
-)
-`,
-  },
-  {
-    name: 'BibleParser.kt',
-    language: 'kotlin',
-    code: `package com.biblejournal.util
+# 3. Add Android platform (if not added)
+npx cap add android
 
-import java.util.regex.Pattern
+# 4. Sync web assets and plugin native Android code
+npx cap sync android
 
-data class BibleRefMatch(
-    val book: String,
-    val chapter: Int,
-    val startVerse: Int,
-    val endVerse: Int?,
-    val rawMatch: String
-)
-
-object BibleParser {
-    private val BOOK_PATTERN = "Matt|Matthew|John|Jn|Rom|Romans|1 Cor|Ps|Psalms|Gen|Genesis|Rev"
-    private val REGEX = Pattern.compile(
-        "\\\\b($BOOK_PATTERN)\\\\b[\\\\s.]*(\\\\d{1,3})[\\\\s]*(?:[:.]|v)?[\\\\s]*(\\\\d{1,3})(?:[\\\\s]*-[\\\\s]*(\\\\d{1,3}))?",
-        Pattern.CASE_INSENSITIVE
-    )
-
-    fun parseReferences(text: String): List<BibleRefMatch> {
-        val matches = mutableListOf<BibleRefMatch>()
-        val matcher = REGEX.matcher(text)
-        while (matcher.find()) {
-            val book = matcher.group(1) ?: continue
-            val chapter = matcher.group(2)?.toIntOrNull() ?: continue
-            val startVerse = matcher.group(3)?.toIntOrNull() ?: continue
-            val endVerse = matcher.group(4)?.toIntOrNull()
-            matches.add(BibleRefMatch(book, chapter, startVerse, endVerse, matcher.group(0)))
-        }
-        return matches
-    }
-}
-`,
-  },
-  {
-    name: 'NoteEditorScreen.kt (Compose)',
-    language: 'kotlin',
-    code: `package com.biblejournal.ui
-
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
-
-@Composable
-fun NoteEditorScreen(
-    entryTitle: String,
-    onTitleChange: (String) -> Unit,
-    onSave: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        TextField(
-            value = entryTitle,
-            onValueChange = onTitleChange,
-            placeholder = { Text("Title...") },
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent
-            )
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        // Mixed Content Editor Canvas & Bible Verse Popup Bottom Sheet
-    }
-}
-`,
-  },
-  {
-    name: 'JournalDatabase.kt',
-    language: 'kotlin',
-    code: `package com.biblejournal.data
-
-import androidx.room.Database
-import androidx.room.RoomDatabase
-
-@Database(entities = [JournalEntity::class], version = 1, exportSchema = false)
-abstract class JournalDatabase : RoomDatabase() {
-    abstract fun journalDao(): JournalDao
-}
+# 5. Open in Android Studio
+npx cap open android
 `,
   },
 ];

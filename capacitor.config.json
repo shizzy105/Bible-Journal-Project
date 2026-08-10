@@ -1,0 +1,14 @@
+{
+  "appId": "com.biblejournal",
+  "appName": "Bible Journal",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "VoiceRecorder": {
+      "permission": true
+    }
+  }
+}
