@@ -6,22 +6,37 @@ import {
   deleteStoredEntry,
   getStoredTheme,
   setStoredTheme,
+  AppTheme,
 } from './services/storage';
 import { DeviceFrame } from './components/DeviceFrame';
 import { HomeScreen } from './components/HomeScreen';
 import { NoteEditorScreen } from './components/NoteEditorScreen';
 import { CalendarScreen } from './components/CalendarScreen';
+import { SettingsScreen } from './components/SettingsScreen';
 import { SearchOverlay } from './components/SearchOverlay';
 import { AndroidCodeExportModal } from './components/AndroidCodeExportModal';
 import { warmupOfflineBibleCache } from './data/bibleData';
 
 export default function App() {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
-  const [activeScreen, setActiveScreen] = useState<'home' | 'editor' | 'calendar'>('home');
+  const [activeScreen, setActiveScreen] = useState<'home' | 'editor' | 'calendar' | 'settings'>('home');
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
   const [showSearch, setShowSearch] = useState<boolean>(false);
   const [showAndroidCode, setShowAndroidCode] = useState<boolean>(false);
-  const [darkMode, setDarkMode] = useState<boolean>(false);
+  const [currentTheme, setCurrentTheme] = useState<AppTheme>('light');
+
+  const darkMode = currentTheme === 'dark';
+
+  const applyThemeToDom = (theme: AppTheme) => {
+    document.documentElement.classList.remove('dark', 'sepia', 'navy');
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else if (theme === 'sepia') {
+      document.documentElement.classList.add('sepia');
+    } else if (theme === 'navy') {
+      document.documentElement.classList.add('navy');
+    }
+  };
 
   // Load entries, theme, and pre-warm Bible cache on mount
   useEffect(() => {
@@ -29,24 +44,22 @@ export default function App() {
     setEntries(loadedEntries);
 
     const savedTheme = getStoredTheme();
-    setDarkMode(savedTheme === 'dark');
-    if (savedTheme === 'dark') {
-      document.documentElement.classList.add('dark');
-    }
+    setCurrentTheme(savedTheme);
+    applyThemeToDom(savedTheme);
 
     // Warm up offline Bible cache in background
     warmupOfflineBibleCache();
   }, []);
 
+  const handleChangeTheme = (newTheme: AppTheme) => {
+    setCurrentTheme(newTheme);
+    setStoredTheme(newTheme);
+    applyThemeToDom(newTheme);
+  };
+
   const handleToggleDarkMode = () => {
-    const nextTheme = !darkMode;
-    setDarkMode(nextTheme);
-    setStoredTheme(nextTheme ? 'dark' : 'light');
-    if (nextTheme) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+    const nextTheme: AppTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    handleChangeTheme(nextTheme);
   };
 
   const handleSelectEntry = (entry: JournalEntry) => {
@@ -101,6 +114,7 @@ export default function App() {
           onOpenCalendar={() => setActiveScreen('calendar')}
           onOpenSearch={() => setShowSearch(true)}
           onOpenAndroidCode={() => setShowAndroidCode(true)}
+          onOpenSettings={() => setActiveScreen('settings')}
           onDeleteEntry={handleDeleteEntry}
           darkMode={darkMode}
           onToggleDarkMode={handleToggleDarkMode}
@@ -124,6 +138,15 @@ export default function App() {
           onCreateEntryForDate={(dateStr) => handleCreateNewEntry(dateStr)}
           onBack={() => setActiveScreen('home')}
           darkMode={darkMode}
+        />
+      )}
+
+      {activeScreen === 'settings' && (
+        <SettingsScreen
+          onBack={() => setActiveScreen('home')}
+          currentTheme={currentTheme}
+          onChangeTheme={handleChangeTheme}
+          onOpenAndroidCode={() => setShowAndroidCode(true)}
         />
       )}
 

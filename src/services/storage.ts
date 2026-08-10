@@ -253,18 +253,39 @@ export function deleteStoredEntry(id: string): JournalEntry[] {
   return updated;
 }
 
-export function getStoredTheme(): 'light' | 'dark' {
-  return (localStorage.getItem(STORAGE_KEY_THEME) as 'light' | 'dark') || 'light';
+export type AppTheme = 'light' | 'dark' | 'sepia' | 'navy';
+
+export function getStoredTheme(): AppTheme {
+  return (localStorage.getItem(STORAGE_KEY_THEME) as AppTheme) || 'light';
 }
 
-export function setStoredTheme(theme: 'light' | 'dark'): void {
+export function setStoredTheme(theme: AppTheme): void {
   localStorage.setItem(STORAGE_KEY_THEME, theme);
 }
 
 export function getStoredTranslation(): string {
-  return localStorage.getItem(STORAGE_KEY_TRANSLATION) || 'WEB';
+  return localStorage.getItem(STORAGE_KEY_TRANSLATION) || 'NKJV';
 }
 
 export function setStoredTranslation(trans: string): void {
   localStorage.setItem(STORAGE_KEY_TRANSLATION, trans);
+}
+
+const STORAGE_KEY_DOWNLOADED_TRANS = 'bible_journal_downloaded_translations_v1';
+
+export function getDownloadedTranslations(): string[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_DOWNLOADED_TRANS);
+    return raw ? JSON.parse(raw) : ['KJV', 'WEB', 'NKJV'];
+  } catch {
+    return ['KJV', 'WEB', 'NKJV'];
+  }
+}
+
+export function setDownloadedTranslations(list: string[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEY_DOWNLOADED_TRANS, JSON.stringify(list));
+  } catch (err) {
+    console.warn('Failed to save downloaded translations:', err);
+  }
 }

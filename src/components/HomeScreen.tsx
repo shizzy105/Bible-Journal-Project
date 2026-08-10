@@ -14,6 +14,7 @@ import {
   Check,
   ChevronRight,
   Bookmark,
+  Settings,
 } from 'lucide-react';
 import { JournalEntry } from '../types/journal';
 import { parseBibleReferences } from '../utils/bibleParser';
@@ -25,6 +26,7 @@ interface HomeScreenProps {
   onOpenCalendar: () => void;
   onOpenSearch: () => void;
   onOpenAndroidCode: () => void;
+  onOpenSettings: () => void;
   onDeleteEntry: (entryId: string) => void;
   darkMode: boolean;
   onToggleDarkMode: () => void;
@@ -37,6 +39,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenCalendar,
   onOpenSearch,
   onOpenAndroidCode,
+  onOpenSettings,
   onDeleteEntry,
   darkMode,
   onToggleDarkMode,
@@ -95,6 +98,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             title="View Native Android Code"
           >
             <FileCode className="w-5 h-5" />
+          </button>
+
+          <button
+            onClick={onOpenSettings}
+            className="p-2.5 rounded-2xl hover:bg-stone-200 dark:hover:bg-slate-800 text-stone-600 dark:text-stone-300 transition-colors"
+            title="App Settings (Translations & Themes)"
+          >
+            <Settings className="w-5 h-5" />
           </button>
 
           <button

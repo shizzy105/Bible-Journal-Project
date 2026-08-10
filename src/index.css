@@ -1,1 +1,42 @@
 @import "tailwindcss";
+
+/* Inline Bible Reference Chips / Tags */
+[data-ref] {
+  display: inline-flex !important;
+  align-items: center !important;
+  vertical-align: baseline !important;
+  margin: 0 4px !important;
+  padding: 2px 8px !important;
+  font-size: 0.9em !important;
+  font-weight: 600 !important;
+  line-height: 1.2 !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+  white-space: nowrap !important;
+}
+
+[data-ref] .ref-click-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 3px !important;
+  line-height: 1.2 !important;
+  font-size: 1em !important;
+}
+
+[data-ref] svg {
+  width: 0.85em !important;
+  height: 0.85em !important;
+  vertical-align: middle !important;
+  display: inline-block !important;
+  flex-shrink: 0 !important;
+}
+
+[data-ref] .ref-delete-btn {
+  margin-left: 3px !important;
+  font-size: 0.85em !important;
+  line-height: 1 !important;
+  padding: 1px 3px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}

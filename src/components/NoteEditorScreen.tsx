@@ -17,6 +17,13 @@ import {
   X,
   Type,
   Check,
+  Bold,
+  Italic,
+  Underline,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  Highlighter,
 } from 'lucide-react';
 import {
   JournalEntry,
@@ -43,7 +50,7 @@ interface NoteEditorScreenProps {
   darkMode: boolean;
 }
 
-// Sub-component for clean, auto-expanding Text Block with inline red Scripture links & atomic tag deletion
+// Sub-component for clean, auto-expanding Rich Text Block with inline Scripture links & formatting support
 interface TextBlockItemProps {
   block: TextBlock;
   onChange: (content: string) => void;
@@ -77,41 +84,34 @@ const TextBlockItem: React.FC<TextBlockItemProps> = ({
     }
   };
 
-  // Helper to construct HTML from text content containing bible references
+  // Helper to construct HTML from text content containing bible references while preserving rich text markup
   const buildHtmlFromText = (text: string) => {
     if (!text) return '';
+    // If text already contains data-ref or rich HTML markup, preserve it directly
+    if (
+      text.includes('data-ref') ||
+      text.includes('<b') ||
+      text.includes('<i') ||
+      text.includes('<u') ||
+      text.includes('<mark') ||
+      text.includes('<font') ||
+      text.includes('style=') ||
+      text.includes('<div')
+    ) {
+      return text;
+    }
+
     const segments = segmentTextWithReferences(text);
     return segments
       .map((seg) => {
         if (seg.type === 'bibleRef' && seg.match) {
           const escapedContent = seg.content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-          return `<span contenteditable="false" data-ref="${escapedContent}" class="inline-flex items-center gap-1 mx-1 my-0.5 px-2 py-0.5 rounded-lg bg-red-100/90 dark:bg-red-950/70 border border-red-200/80 dark:border-red-900/80 text-red-600 dark:text-red-400 font-extrabold text-base sm:text-lg align-baseline shadow-2xs select-none cursor-pointer"><span class="ref-click-btn inline-flex items-center gap-1 hover:underline"><svg class="w-3.5 h-3.5 inline shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg><span>${escapedContent}</span></span><span class="ref-delete-btn p-0.5 rounded-full hover:bg-red-200 dark:hover:bg-red-900 text-red-500 transition-colors ml-0.5 cursor-pointer" title="Remove reference">✕</span></span>`;
+          return `<span contenteditable="false" data-ref="${escapedContent}" class="inline-flex items-center gap-1 mx-1 my-0 px-2 py-[2px] rounded-md bg-red-100/90 dark:bg-red-950/70 border border-red-200/80 dark:border-red-900/80 text-red-600 dark:text-red-400 font-semibold text-[0.9em] leading-tight align-baseline select-none cursor-pointer"><span class="ref-click-btn inline-flex items-center gap-1 hover:underline"><svg class="w-3.5 h-3.5 inline shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg><span>${escapedContent}</span></span><span class="ref-delete-btn p-0.5 rounded-full hover:bg-red-200 dark:hover:bg-red-900 text-red-500 transition-colors ml-0.5 cursor-pointer" title="Remove reference">✕</span></span>`;
         } else {
           return seg.content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br/>');
         }
       })
       .join('');
-  };
-
-  // Extract plain text string from editor HTML
-  const extractTextFromEditor = (el: HTMLElement): string => {
-    let result = '';
-    const walk = (node: Node) => {
-      if (node.nodeType === Node.TEXT_NODE) {
-        result += node.nodeValue || '';
-      } else if (node.nodeType === Node.ELEMENT_NODE) {
-        const element = node as HTMLElement;
-        if (element.tagName === 'BR') {
-          result += '\n';
-        } else if (element.hasAttribute('data-ref')) {
-          result += element.getAttribute('data-ref') || '';
-        } else {
-          node.childNodes.forEach(walk);
-        }
-      }
-    };
-    el.childNodes.forEach(walk);
-    return result;
   };
 
   // Sync content updates
@@ -135,8 +135,7 @@ const TextBlockItem: React.FC<TextBlockItemProps> = ({
 
   const handleInput = () => {
     if (!editorRef.current) return;
-    const text = extractTextFromEditor(editorRef.current);
-    onChange(text);
+    onChange(editorRef.current.innerHTML);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -215,6 +214,15 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
   const [showDrawingCanvas, setShowDrawingCanvas] = useState<boolean>(false);
   const [showReferenceModal, setShowReferenceModal] = useState<boolean>(false);
   const [customRefInput, setCustomRefInput] = useState<string>('Matt 5 v 7-20');
+  const [showFormatToolbar, setShowFormatToolbar] = useState<boolean>(false);
+
+  const executeFormat = (command: string, value: string = '') => {
+    try {
+      document.execCommand(command, false, value);
+    } catch (err) {
+      console.warn('Execute format command error:', err);
+    }
+  };
 
   // Image Upload File Input Ref
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -684,14 +692,208 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
           darkMode ? 'bg-slate-900/95 border-slate-800 text-slate-100' : 'bg-white/95 border-stone-200 text-stone-800'
         } backdrop-blur-md shadow-lg max-w-2xl mx-auto rounded-t-3xl`}
       >
+        {/* Rich Text Formatting Sub-Toolbar Drawer attached directly under/above the Text button */}
+        {showFormatToolbar && (
+          <div className="flex items-center justify-between gap-1 p-2 bg-stone-100 dark:bg-slate-800 rounded-2xl border border-stone-200 dark:border-slate-700 backdrop-blur-md overflow-x-auto text-stone-800 dark:text-stone-200 shadow-sm animate-in fade-in duration-150">
+            {/* Style Group: Bold, Italic, Underline */}
+            <div className="flex items-center gap-1 border-r border-stone-300 dark:border-slate-700 pr-2 shrink-0">
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  executeFormat('bold');
+                }}
+                className="p-1.5 rounded-xl hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-800 dark:text-stone-100 font-bold active:scale-95 transition-transform"
+                title="Bold"
+              >
+                <Bold className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  executeFormat('italic');
+                }}
+                className="p-1.5 rounded-xl hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-800 dark:text-stone-100 italic active:scale-95 transition-transform"
+                title="Italic"
+              >
+                <Italic className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  executeFormat('underline');
+                }}
+                className="p-1.5 rounded-xl hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-800 dark:text-stone-100 underline active:scale-95 transition-transform"
+                title="Underline"
+              >
+                <Underline className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Font Size Group */}
+            <div className="flex items-center gap-1 border-r border-stone-300 dark:border-slate-700 pr-2 shrink-0">
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  executeFormat('fontSize', '2');
+                }}
+                className="px-2 py-1 rounded-lg text-xs font-bold hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-700 dark:text-stone-300 active:scale-95"
+                title="Small font size"
+              >
+                S
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  executeFormat('fontSize', '3');
+                }}
+                className="px-2 py-1 rounded-lg text-sm font-bold hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-700 dark:text-stone-300 active:scale-95"
+                title="Medium font size"
+              >
+                M
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  executeFormat('fontSize', '5');
+                }}
+                className="px-2 py-1 rounded-lg text-base font-extrabold hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-800 dark:text-stone-100 active:scale-95"
+                title="Large font size"
+              >
+                L
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  executeFormat('fontSize', '6');
+                }}
+                className="px-2 py-1 rounded-lg text-lg font-black hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-900 dark:text-white active:scale-95"
+                title="Extra Large font size"
+              >
+                XL
+              </button>
+            </div>
+
+            {/* Alignment Group */}
+            <div className="flex items-center gap-1 border-r border-stone-300 dark:border-slate-700 pr-2 shrink-0">
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  executeFormat('justifyLeft');
+                }}
+                className="p-1.5 rounded-xl hover:bg-stone-200 dark:hover:bg-slate-700 active:scale-95"
+                title="Align Left"
+              >
+                <AlignLeft className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  executeFormat('justifyCenter');
+                }}
+                className="p-1.5 rounded-xl hover:bg-stone-200 dark:hover:bg-slate-700 active:scale-95"
+                title="Align Center"
+              >
+                <AlignCenter className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  executeFormat('justifyRight');
+                }}
+                className="p-1.5 rounded-xl hover:bg-stone-200 dark:hover:bg-slate-700 active:scale-95"
+                title="Align Right"
+              >
+                <AlignRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Verse Highlighting Colors */}
+            <div className="flex items-center gap-1.5 pl-1 shrink-0">
+              <Highlighter className="w-3.5 h-3.5 opacity-60 shrink-0" title="Verse Highlight" />
+              {/* Yellow Gold */}
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  executeFormat('hiliteColor', '#fef08a');
+                }}
+                className="w-5 h-5 rounded-full bg-yellow-300 border border-yellow-400 hover:scale-110 transition-transform ring-1 ring-black/10"
+                title="Highlight Yellow Gold"
+              />
+              {/* Rose Red */}
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  executeFormat('hiliteColor', '#fca5a5');
+                }}
+                className="w-5 h-5 rounded-full bg-red-300 border border-red-400 hover:scale-110 transition-transform ring-1 ring-black/10"
+                title="Highlight Rose Grace"
+              />
+              {/* Emerald Green */}
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  executeFormat('hiliteColor', '#bbf7d0');
+                }}
+                className="w-5 h-5 rounded-full bg-emerald-300 border border-emerald-400 hover:scale-110 transition-transform ring-1 ring-black/10"
+                title="Highlight Life Green"
+              />
+              {/* Sky Blue */}
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  executeFormat('hiliteColor', '#bfdbfe');
+                }}
+                className="w-5 h-5 rounded-full bg-blue-300 border border-blue-400 hover:scale-110 transition-transform ring-1 ring-black/10"
+                title="Highlight Living Water Blue"
+              />
+              {/* Clear Highlight */}
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  executeFormat('removeFormat');
+                  executeFormat('hiliteColor', 'transparent');
+                }}
+                className="p-1 rounded-full text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-slate-700"
+                title="Remove Highlight / Clear Format"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center justify-around gap-1.5 pt-1">
-          {/* Add Text Block */}
+          {/* Add Text Block / Toggle Format Options */}
           <button
-            onClick={() => handleAddTextBlock()}
-            className="flex-1 py-2 px-2.5 rounded-2xl bg-stone-100 dark:bg-slate-800 hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-700 dark:text-stone-200 text-xs font-bold flex items-center justify-center gap-1 border border-stone-200 dark:border-slate-700 transition-transform active:scale-95"
-            title="Add text entry block"
+            onClick={() => {
+              if (blocks.length === 0 || blocks[blocks.length - 1].type !== 'text') {
+                handleAddTextBlock();
+              }
+              setShowFormatToolbar((prev) => !prev);
+            }}
+            className={`flex-1 py-2 px-2.5 rounded-2xl text-xs font-bold flex items-center justify-center gap-1 border transition-all active:scale-95 ${
+              showFormatToolbar
+                ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                : 'bg-stone-100 dark:bg-slate-800 hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-700 dark:text-stone-200 border-stone-200 dark:border-slate-700'
+            }`}
+            title="Toggle Rich Text formatting options (Bold, Italic, Underline, Size, Highlight)"
           >
-            <Type className="w-4 h-4 text-blue-500" />
+            <Type className={`w-4 h-4 ${showFormatToolbar ? 'text-white' : 'text-blue-500'}`} />
             <span>Text</span>
           </button>
 

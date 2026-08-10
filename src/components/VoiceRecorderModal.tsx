@@ -15,11 +15,13 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({ onClose,
   const [audioUrl, setAudioUrl] = useState<string>('');
   const [permissionError, setPermissionError] = useState<string>('');
 
+  const [hasStarted, setHasStarted] = useState<boolean>(false);
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Start recording when modal opens
+  // Attempt recording on modal mount
   useEffect(() => {
     startRealRecording();
 
@@ -51,68 +53,85 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({ onClose,
     setAudioUrl('');
     setAudioBlob(null);
 
+    // Check secure context
+    if (typeof window !== 'undefined' && window.isSecureContext === false && location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+      setPermissionError('Microphone recording requires a secure (HTTPS) connection.');
+      return;
+    }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setPermissionError('Microphone recording is not supported or allowed in this browser view.');
+      return;
+    }
+
     try {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        
-        let mimeType = '';
-        if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported) {
-          if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-            mimeType = 'audio/webm;codecs=opus';
-          } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
-            mimeType = 'audio/mp4';
-          } else if (MediaRecorder.isTypeSupported('audio/aac')) {
-            mimeType = 'audio/aac';
-          } else if (MediaRecorder.isTypeSupported('audio/webm')) {
-            mimeType = 'audio/webm';
-          } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
-            mimeType = 'audio/ogg';
-          }
+      // Direct user gesture request for audio permission
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      let mimeType = '';
+      if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported) {
+        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+          mimeType = 'audio/webm;codecs=opus';
+        } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+          mimeType = 'audio/mp4';
+        } else if (MediaRecorder.isTypeSupported('audio/aac')) {
+          mimeType = 'audio/aac';
+        } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+          mimeType = 'audio/webm';
+        } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
+          mimeType = 'audio/ogg';
         }
+      }
 
-        const options = mimeType ? { mimeType } : undefined;
-        mediaRecorderRef.current = new MediaRecorder(stream, options);
-        audioChunksRef.current = [];
+      const options = mimeType ? { mimeType } : undefined;
+      mediaRecorderRef.current = new MediaRecorder(stream, options);
+      audioChunksRef.current = [];
 
-        mediaRecorderRef.current.ondataavailable = (event) => {
-          if (event.data && event.data.size > 0) {
-            audioChunksRef.current.push(event.data);
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorderRef.current.onstop = () => {
+        const finalType = mimeType || (audioChunksRef.current[0]?.type) || 'audio/webm';
+        const blob = new Blob(audioChunksRef.current, { type: finalType });
+        setAudioBlob(blob);
+
+        // Create direct Blob URL for instant native audio playback
+        const blobUrl = URL.createObjectURL(blob);
+        setAudioUrl(blobUrl);
+
+        // Convert Blob to Base64 Data URL for persistent storage
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64data = reader.result as string;
+          if (base64data) {
+            setAudioUrl(base64data);
           }
         };
+        reader.readAsDataURL(blob);
 
-        mediaRecorderRef.current.onstop = () => {
-          const finalType = mimeType || (audioChunksRef.current[0]?.type) || 'audio/webm';
-          const blob = new Blob(audioChunksRef.current, { type: finalType });
-          setAudioBlob(blob);
+        // Stop stream tracks to free microphone
+        stream.getTracks().forEach((track) => track.stop());
+      };
 
-          // Create direct Blob URL for instant native audio playback
-          const blobUrl = URL.createObjectURL(blob);
-          setAudioUrl(blobUrl);
-
-          // Convert Blob to Base64 Data URL for persistent storage
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const base64data = reader.result as string;
-            if (base64data) {
-              setAudioUrl(base64data);
-            }
-          };
-          reader.readAsDataURL(blob);
-
-          // Stop stream tracks to free microphone
-          stream.getTracks().forEach((track) => track.stop());
-        };
-
-        // Start continuous recording without fragmentation
-        mediaRecorderRef.current.start();
-        setIsRecording(true);
-        startTimer();
-      } else {
-        throw new Error('MediaDevices API not available');
-      }
+      // Start continuous recording without fragmentation
+      mediaRecorderRef.current.start();
+      setIsRecording(true);
+      setHasStarted(true);
+      startTimer();
     } catch (err: any) {
-      console.warn('Microphone permission blocked or unavailable:', err);
-      setPermissionError('Microphone permission is required to record voice notes. Please grant microphone permissions in your browser or device settings.');
+      console.warn('Microphone permission error:', err);
+      setIsRecording(false);
+      
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setPermissionError('Microphone permission is blocked or was denied. Tap "Allow Microphone Access" below to request permission, or enable microphone in app/site settings.');
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        setPermissionError('No microphone detected on your device.');
+      } else {
+        setPermissionError('Microphone permission is required to record voice notes. Tap "Allow Microphone Access" below.');
+      }
     }
   };
 
@@ -165,13 +184,29 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({ onClose,
 
         <h3 className="text-lg font-bold text-white">Voice Journal Note</h3>
         <p className="text-xs text-stone-400 mt-1 mb-4">
-          {isRecording ? 'Recording audio...' : 'Audio note recorded'}
+          {isRecording
+            ? 'Recording audio...'
+            : audioUrl
+            ? 'Audio note recorded'
+            : permissionError
+            ? 'Microphone permission required'
+            : 'Tap button below to start recording'}
         </p>
 
         {permissionError && (
-          <div className="w-full bg-red-950/60 border border-red-800/80 rounded-xl p-3 mb-4 text-red-200 text-xs flex items-center gap-2 text-left">
-            <AlertCircle className="w-5 h-5 shrink-0 text-red-400" />
-            <span>{permissionError}</span>
+          <div className="w-full bg-red-950/60 border border-red-800/80 rounded-xl p-3 mb-4 text-red-200 text-xs flex flex-col gap-2 text-left">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 shrink-0 text-red-400" />
+              <span className="font-semibold text-red-300">Permission Action Needed</span>
+            </div>
+            <p className="text-stone-300 leading-relaxed">{permissionError}</p>
+            <button
+              onClick={() => startRealRecording()}
+              className="mt-1 w-full py-2 px-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-md transition-transform active:scale-95"
+            >
+              <Mic className="w-4 h-4" />
+              <span>Grant Microphone Access & Record</span>
+            </button>
           </div>
         )}
 
@@ -210,7 +245,7 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({ onClose,
         )}
 
         {/* Action Controls */}
-        <div className="flex items-center gap-4 mt-2 w-full">
+        <div className="flex items-center gap-3 mt-2 w-full">
           {isRecording ? (
             <button
               onClick={handleStopRecording}
@@ -219,15 +254,32 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({ onClose,
               <Square className="w-5 h-5 fill-current" />
               <span>Stop Recording</span>
             </button>
-          ) : (
+          ) : audioUrl ? (
+            <div className="flex items-center gap-2 w-full">
+              <button
+                onClick={() => startRealRecording()}
+                className="py-3 px-3 bg-stone-800 hover:bg-stone-700 text-stone-200 font-semibold rounded-2xl flex items-center justify-center gap-1.5 text-xs transition-transform active:scale-95"
+              >
+                <Mic className="w-4 h-4 text-red-400" />
+                <span>Re-record</span>
+              </button>
+              <button
+                onClick={handleSave}
+                className="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95 text-xs sm:text-sm"
+              >
+                <Check className="w-5 h-5" />
+                <span>Save Voice Note</span>
+              </button>
+            </div>
+          ) : !permissionError ? (
             <button
-              onClick={handleSave}
-              className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95"
+              onClick={() => startRealRecording()}
+              className="w-full py-3.5 px-4 bg-red-600 hover:bg-red-500 text-white font-bold rounded-2xl flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95"
             >
-              <Check className="w-5 h-5" />
-              <span>Save Voice Note</span>
+              <Mic className="w-5 h-5" />
+              <span>Start Recording</span>
             </button>
-          )}
+          ) : null}
         </div>
       </div>
     </div>
