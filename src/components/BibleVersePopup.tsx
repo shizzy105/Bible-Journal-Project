@@ -2,6 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { X, Copy, Check, BookOpen, PlusCircle, Loader2, WifiOff } from 'lucide-react';
 import { getBibleVersesSync, fetchBibleVersesAsync, TRANSLATIONS } from '../data/bibleData';
 import { BibleReferenceMatch, BibleVerse } from '../types/journal';
+import { getEnabledTranslations, getStoredTranslation } from '../services/storage';
+
+const ALL_POSSIBLE_TRANSLATIONS = [
+  { id: 'KJV', name: 'King James Version (KJV)' },
+  { id: 'NKJV', name: 'New King James Version (NKJV)' },
+  { id: 'ESV', name: 'English Standard Version (ESV)' },
+  { id: 'WEB', name: 'World English Bible (WEB)' },
+  { id: 'NIV', name: 'New International Version (NIV)' },
+  { id: 'NLT', name: 'New Living Translation (NLT)' },
+];
 
 interface BibleVersePopupProps {
   match: BibleReferenceMatch | null;
@@ -10,10 +20,24 @@ interface BibleVersePopupProps {
 }
 
 export const BibleVersePopup: React.FC<BibleVersePopupProps> = ({ match, onClose, onInsertIntoNote }) => {
-  const [selectedTranslation, setSelectedTranslation] = useState<string>('WEB');
+  const [selectedTranslation, setSelectedTranslation] = useState<string>('KJV');
+  const [availableTranslations, setAvailableTranslations] = useState<string[]>(['KJV']);
   const [verses, setVerses] = useState<BibleVerse[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [copied, setCopied] = useState<boolean>(false);
+
+  useEffect(() => {
+    const enabled = getEnabledTranslations();
+    const list = enabled.length > 0 ? enabled : ['KJV'];
+    setAvailableTranslations(list);
+
+    const savedTrans = getStoredTranslation();
+    if (list.includes(savedTrans)) {
+      setSelectedTranslation(savedTrans);
+    } else if (list.length > 0) {
+      setSelectedTranslation(list[0]);
+    }
+  }, []);
 
   useEffect(() => {
     if (!match) return;
@@ -120,7 +144,7 @@ export const BibleVersePopup: React.FC<BibleVersePopupProps> = ({ match, onClose
             onChange={(e) => setSelectedTranslation(e.target.value)}
             className="bg-stone-800 text-red-300 font-medium px-2.5 py-1 rounded-md border border-stone-700 focus:outline-none focus:ring-1 focus:ring-red-500"
           >
-            {TRANSLATIONS.map((t) => (
+            {ALL_POSSIBLE_TRANSLATIONS.filter((t) => availableTranslations.includes(t.id)).map((t) => (
               <option key={t.id} value={t.id}>
                 {t.id} - {t.name}
               </option>

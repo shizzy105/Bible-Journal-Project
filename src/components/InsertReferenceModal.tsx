@@ -1,20 +1,36 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { BookOpen, X, Check, AlertCircle, Search } from 'lucide-react';
 import { BIBLE_BOOKS, getMaxVersesForChapter } from '../data/bibleData';
-import { parseBibleReferences } from '../utils/bibleParser';
+import { parseBibleReferences, formatRefMatch } from '../utils/bibleParser';
+import { getStoredRefFormat } from '../services/storage';
 
 interface InsertReferenceModalProps {
   onClose: () => void;
   onInsert: (formattedRef: string) => void;
+  darkMode?: boolean;
 }
 
 export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
   onClose,
   onInsert,
+  darkMode,
 }) => {
-  // Free text query or structured selection
-  const [query, setQuery] = useState<string>('Matt 8 v 9');
-  const [showBookDropdown, setShowBookDropdown] = useState<boolean>(false);
+  // Free text query or structured selection - start empty
+  const [query, setQuery] = useState<string>('');
+  const [showBookDropdown, setShowBookDropdown] = useState<boolean>(true);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Compute effective dark mode if prop is not passed
+  const isDark =
+    darkMode ??
+    (typeof document !== 'undefined' &&
+      document.documentElement.classList.contains('dark'));
+
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, []);
 
   // Filter book suggestions based on user input
   const bookSuggestions = useMemo(() => {
@@ -43,9 +59,7 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
       return {
         isValid: true,
         match,
-        formatted: `${match.bookName} ${match.chapter} v ${
-          match.startVerse
-        }${match.endVerse && match.endVerse !== match.startVerse ? `-${match.endVerse}` : ''}`,
+        formatted: formatRefMatch(match, getStoredRefFormat()),
       };
     }
 
@@ -130,8 +144,13 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
 
   const handleSelectBook = (bookName: string) => {
     setShowBookDropdown(false);
-    // Auto populate query with selected book and chapter 1 verse 1
-    setQuery(`${bookName} 1 v 1`);
+    const newQuery = `${bookName} `;
+    setQuery(newQuery);
+    if (inputRef.current) {
+      inputRef.current.focus();
+      const pos = newQuery.length;
+      inputRef.current.setSelectionRange(pos, pos);
+    }
   };
 
   const handleInsert = () => {
@@ -142,22 +161,41 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4 animate-fadeIn">
-      <div className="relative w-full max-w-md bg-stone-900 border border-stone-800 text-stone-100 rounded-3xl shadow-2xl p-5 sm:p-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-fadeIn">
+      <div
+        className={`relative w-full max-w-md border rounded-3xl shadow-2xl p-5 sm:p-6 transition-colors ${
+          isDark
+            ? 'bg-slate-900 border-slate-800 text-slate-100'
+            : 'bg-white border-stone-200 text-stone-900'
+        }`}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-stone-800 pb-3 mb-4">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-red-600/20 text-red-500">
+        <div
+          className={`flex items-center justify-between border-b pb-3 mb-4 ${
+            isDark ? 'border-slate-800' : 'border-stone-200'
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-red-600/15 text-red-600 dark:text-red-400">
               <BookOpen className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-extrabold text-base text-white">Insert Scripture Reference</h3>
-              <p className="text-[11px] text-stone-400">Inserts an atomic scripture link in your note</p>
+              <h3 className={`font-extrabold text-base ${isDark ? 'text-white' : 'text-stone-900'}`}>
+                Insert Scripture Reference
+              </h3>
+              <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-stone-500'}`}>
+                Inserts an atomic scripture link in your note
+              </p>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-stone-800 text-stone-400 hover:text-white transition-colors"
+            className={`p-1.5 rounded-full transition-colors ${
+              isDark
+                ? 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                : 'hover:bg-stone-100 text-stone-400 hover:text-stone-800'
+            }`}
           >
             <X className="w-5 h-5" />
           </button>
@@ -166,39 +204,77 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
         <div className="space-y-4">
           {/* Main Search Input */}
           <div className="relative">
-            <label className="block text-xs font-bold text-stone-300 mb-1.5">
+            <label
+              className={`block text-xs font-bold mb-1.5 ${
+                isDark ? 'text-slate-300' : 'text-stone-700'
+              }`}
+            >
               Type Reference or Book Name:
             </label>
             <div className="relative flex items-center">
-              <Search className="w-4 h-4 absolute left-3.5 text-stone-400 pointer-events-none" />
+              <Search
+                className={`w-4 h-4 absolute left-3.5 pointer-events-none ${
+                  isDark ? 'text-slate-500' : 'text-stone-400'
+                }`}
+              />
               <input
+                ref={inputRef}
                 type="text"
                 value={query}
                 onChange={(e) => {
                   setQuery(e.target.value);
                   setShowBookDropdown(true);
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleInsert();
+                  }
+                }}
                 onFocus={() => setShowBookDropdown(true)}
                 placeholder="e.g. Matt 8 v 9, Daniel 5 v 10, John 3:16"
-                className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-stone-950 border border-stone-800 text-white font-mono text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                className={`w-full pl-10 pr-4 py-2.5 rounded-2xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-red-600 shadow-inner transition-colors ${
+                  isDark
+                    ? 'bg-slate-950 text-white placeholder:text-slate-500 border border-slate-700'
+                    : 'bg-stone-100 text-stone-900 placeholder:text-stone-400 border border-stone-300'
+                }`}
               />
             </div>
 
             {/* Live Book Suggestions Dropdown */}
             {showBookDropdown && bookSuggestions.length > 0 && (
-              <div className="absolute left-0 right-0 top-full mt-1 z-30 bg-stone-950 border border-stone-800 rounded-2xl shadow-xl max-h-48 overflow-y-auto divide-y divide-stone-900">
-                <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider font-bold text-stone-500 bg-stone-900/50">
+              <div
+                className={`absolute left-0 right-0 top-full mt-1 z-30 border rounded-2xl shadow-xl max-h-48 overflow-y-auto divide-y ${
+                  isDark
+                    ? 'bg-slate-950 border-slate-800 divide-slate-800/80 text-slate-100'
+                    : 'bg-white border-stone-200 divide-stone-100 text-stone-900'
+                }`}
+              >
+                <div
+                  className={`px-3 py-1.5 text-[10px] uppercase tracking-wider font-bold ${
+                    isDark ? 'text-slate-400 bg-slate-900/80' : 'text-stone-500 bg-stone-50'
+                  }`}
+                >
                   Book Suggestions
                 </div>
                 {bookSuggestions.map((book) => (
                   <button
                     key={book.id}
                     type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onTouchStart={(e) => {
+                      e.preventDefault();
+                      handleSelectBook(book.name);
+                    }}
                     onClick={() => handleSelectBook(book.name)}
-                    className="w-full text-left px-3.5 py-2 hover:bg-stone-800 flex items-center justify-between text-xs transition-colors"
+                    className={`w-full text-left px-3.5 py-2 flex items-center justify-between text-xs transition-colors ${
+                      isDark
+                        ? 'hover:bg-slate-800/90 text-slate-200'
+                        : 'hover:bg-stone-100 text-stone-800'
+                    }`}
                   >
-                    <span className="font-bold text-stone-200">{book.name}</span>
-                    <span className="text-[11px] text-stone-500">
+                    <span className="font-bold">{book.name}</span>
+                    <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-stone-500'}`}>
                       {book.testament} • {book.chaptersCount} chapters
                     </span>
                   </button>
@@ -209,23 +285,39 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
 
           {/* Validation Feedback Status Banner */}
           {validationResult.isValid ? (
-            <div className="p-3 rounded-2xl bg-emerald-950/60 border border-emerald-800/80 flex items-center gap-2.5 text-emerald-300 text-xs font-medium">
-              <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+            <div
+              className={`p-3 rounded-2xl border flex items-center gap-2.5 text-xs font-medium ${
+                isDark
+                  ? 'bg-emerald-950/70 border-emerald-800/90 text-emerald-300'
+                  : 'bg-emerald-50 border-emerald-300 text-emerald-900'
+              }`}
+            >
+              <Check className="w-4 h-4 text-emerald-500 shrink-0" />
               <div>
                 <span className="font-bold">Valid Reference: </span>
                 <span className="underline font-mono">{validationResult.formatted}</span>
               </div>
             </div>
           ) : (
-            <div className="p-3 rounded-2xl bg-red-950/60 border border-red-900/80 flex items-center gap-2.5 text-red-300 text-xs">
-              <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+            <div
+              className={`p-3 rounded-2xl border flex items-center gap-2.5 text-xs ${
+                isDark
+                  ? 'bg-red-950/70 border-red-900/80 text-red-300'
+                  : 'bg-red-50 border-red-200 text-red-900'
+              }`}
+            >
+              <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
               <span>{validationResult.error}</span>
             </div>
           )}
 
           {/* Quick Presets */}
           <div>
-            <span className="text-[11px] font-bold text-stone-400 block mb-1.5">
+            <span
+              className={`text-[11px] font-bold block mb-1.5 ${
+                isDark ? 'text-slate-400' : 'text-stone-500'
+              }`}
+            >
               Quick Verified Examples:
             </span>
             <div className="flex flex-wrap gap-1.5">
@@ -240,11 +332,27 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
                 <button
                   key={preset}
                   type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onTouchStart={(e) => {
+                    e.preventDefault();
+                    setQuery(preset);
+                    setShowBookDropdown(false);
+                    if (inputRef.current) {
+                      inputRef.current.focus();
+                    }
+                  }}
                   onClick={() => {
                     setQuery(preset);
                     setShowBookDropdown(false);
+                    if (inputRef.current) {
+                      inputRef.current.focus();
+                    }
                   }}
-                  className="px-2.5 py-1 rounded-xl bg-stone-800 hover:bg-red-950 hover:text-red-300 text-stone-300 text-xs font-mono border border-stone-700 transition-colors"
+                  className={`px-2.5 py-1 rounded-xl text-xs font-mono border transition-colors ${
+                    isDark
+                      ? 'bg-slate-800 hover:bg-red-950/80 hover:text-red-300 hover:border-red-800 text-slate-300 border-slate-700'
+                      : 'bg-stone-100 hover:bg-red-50 hover:text-red-700 hover:border-red-200 text-stone-700 border-stone-200'
+                  }`}
                 >
                   {preset}
                 </button>
@@ -253,11 +361,19 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
           </div>
 
           {/* Footer Action Buttons */}
-          <div className="flex items-center justify-end gap-2 pt-3 border-t border-stone-800">
+          <div
+            className={`flex items-center justify-end gap-2 pt-3 border-t ${
+              isDark ? 'border-slate-800' : 'border-stone-200'
+            }`}
+          >
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-semibold transition-colors"
+              className={`px-4 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                isDark
+                  ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                  : 'bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200'
+              }`}
             >
               Cancel
             </button>
@@ -265,7 +381,7 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
               type="button"
               disabled={!validationResult.isValid}
               onClick={handleInsert}
-              className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold flex items-center gap-1.5 shadow-md transition-all"
+              className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold flex items-center gap-1.5 shadow-md transition-all active:scale-95"
             >
               <Check className="w-4 h-4" />
               <span>Insert Reference</span>

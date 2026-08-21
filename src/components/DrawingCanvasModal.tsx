@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { X, Check, RotateCcw, Trash2, Eraser, Edit3, Palette } from 'lucide-react';
+import { X, Check, RotateCcw, RotateCw, Trash2, Eraser, Edit3, Palette } from 'lucide-react';
 import { DrawingBlock } from '../types/journal';
 
 interface DrawingCanvasModalProps {
@@ -135,6 +135,18 @@ export const DrawingCanvasModal: React.FC<DrawingCanvasModalProps> = ({
     }
   };
 
+  const handleRedo = () => {
+    if (historyStep < history.length - 1) {
+      const nextStep = historyStep + 1;
+      setHistoryStep(nextStep);
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.putImageData(history[nextStep], 0, 0);
+    }
+  };
+
   const handleClear = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -243,19 +255,31 @@ export const DrawingCanvasModal: React.FC<DrawingCanvasModalProps> = ({
 
           {/* Action buttons */}
           <div className="flex items-center justify-between gap-2 pt-2 border-t border-stone-800">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <button
+                type="button"
                 onClick={handleUndo}
                 disabled={historyStep <= 0}
-                className="p-2 rounded-xl bg-stone-800 hover:bg-stone-700 disabled:opacity-40 text-stone-300 text-xs flex items-center gap-1 font-medium"
-                title="Undo"
+                className="p-2 rounded-xl bg-stone-800 hover:bg-stone-700 disabled:opacity-30 disabled:hover:bg-stone-800 text-stone-300 text-xs flex items-center gap-1 font-medium transition-colors"
+                title="Undo (Ctrl+Z)"
               >
                 <RotateCcw className="w-4 h-4" />
                 <span className="hidden sm:inline">Undo</span>
               </button>
               <button
+                type="button"
+                onClick={handleRedo}
+                disabled={historyStep >= history.length - 1}
+                className="p-2 rounded-xl bg-stone-800 hover:bg-stone-700 disabled:opacity-30 disabled:hover:bg-stone-800 text-stone-300 text-xs flex items-center gap-1 font-medium transition-colors"
+                title="Redo (Ctrl+Y)"
+              >
+                <RotateCw className="w-4 h-4" />
+                <span className="hidden sm:inline">Redo</span>
+              </button>
+              <button
+                type="button"
                 onClick={handleClear}
-                className="p-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs flex items-center gap-1 font-medium"
+                className="p-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs flex items-center gap-1 font-medium transition-colors"
                 title="Clear Canvas"
               >
                 <Trash2 className="w-4 h-4 text-red-400" />
@@ -265,14 +289,16 @@ export const DrawingCanvasModal: React.FC<DrawingCanvasModalProps> = ({
 
             <div className="flex items-center gap-2">
               <button
+                type="button"
                 onClick={onClose}
-                className="px-3.5 py-2 rounded-xl bg-stone-800 text-stone-300 hover:bg-stone-700 text-xs font-semibold"
+                className="px-3.5 py-2 rounded-xl bg-stone-800 text-stone-300 hover:bg-stone-700 text-xs font-semibold transition-colors"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleSave}
-                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md"
+                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md transition-transform active:scale-95"
               >
                 <Check className="w-4 h-4" />
                 <span>Save Sketch</span>

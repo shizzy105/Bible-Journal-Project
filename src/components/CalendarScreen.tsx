@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Plus, FileText, BookOpen, ArrowLeft } from 'lucide-react';
 import { JournalEntry } from '../types/journal';
-import { stripHtmlTags } from '../utils/bibleParser';
+import { getJournalEntryTextSnippet, formatDateDDMMYYYY } from '../utils/bibleParser';
 
 interface CalendarScreenProps {
   entries: JournalEntry[];
@@ -178,7 +178,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wider">
-              Entries for {selectedDateStr}
+              Entries for {formatDateDDMMYYYY(selectedDateStr)}
             </h4>
             <button
               onClick={() => onCreateEntryForDate(selectedDateStr)}
@@ -200,7 +200,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
                 onClick={() => onCreateEntryForDate(selectedDateStr)}
                 className="mt-2 text-xs text-red-500 font-bold hover:underline"
               >
-                + Write a note for {selectedDateStr}
+                + Write a note for {formatDateDDMMYYYY(selectedDateStr)}
               </button>
             </div>
           ) : (
@@ -215,8 +215,8 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
                 }`}
               >
                 <h5 className="font-bold text-base line-clamp-1">{entry.title || 'Untitled Entry'}</h5>
-                <p className="text-xs text-stone-400 line-clamp-2 mt-1 font-serif">
-                  {stripHtmlTags(entry.blocks.find((b) => b.type === 'text')?.content || '') || 'No text content'}
+                <p className="text-xs text-stone-400 line-clamp-2 mt-1 leading-relaxed">
+                  {getJournalEntryTextSnippet(entry) || 'No text content'}
                 </p>
               </div>
             ))

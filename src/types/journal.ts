@@ -79,3 +79,31 @@ export interface BibleVerse {
   text: string;
   translation?: string;
 }
+
+export interface DeletedJournalEntry {
+  entry: JournalEntry;
+  deletedAt: string; // ISO string timestamp
+}
+
+export interface BackupData {
+  version: string;
+  exportedAt: string;
+  app: string;
+  entries: JournalEntry[];
+  recentlyDeleted?: DeletedJournalEntry[];
+  preferences?: {
+    theme?: string;
+    appFont?: string;
+    refFormat?: string;
+    translation?: string;
+    enabledVersions?: string[];
+  };
+  metadata?: {
+    totalNotes: number;
+    totalVoiceNotes: number;
+    totalDrawings: number;
+    totalImages?: number;
+  };
+}
+
+export type AppFont = 'system' | 'literata' | 'crimson' | 'nunito' | 'slab' | 'caveat';

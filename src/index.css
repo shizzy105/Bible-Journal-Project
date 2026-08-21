@@ -1,23 +1,180 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Global App Font Styles */
+:root {
+  --app-font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Plus Jakarta Sans', sans-serif;
+}
+
+:root[data-app-font="system"], body[data-app-font="system"] {
+  --app-font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Plus Jakarta Sans', sans-serif;
+}
+
+:root[data-app-font="literata"], body[data-app-font="literata"] {
+  --app-font-family: 'Literata', Georgia, Cambria, 'Times New Roman', serif;
+}
+
+:root[data-app-font="crimson"], body[data-app-font="crimson"] {
+  --app-font-family: 'Crimson Pro', 'Times New Roman', Garamond, serif;
+}
+
+:root[data-app-font="nunito"], body[data-app-font="nunito"] {
+  --app-font-family: 'Nunito', system-ui, -apple-system, sans-serif;
+}
+
+:root[data-app-font="slab"], body[data-app-font="slab"] {
+  --app-font-family: 'Roboto Slab', Georgia, serif;
+}
+
+:root[data-app-font="caveat"], body[data-app-font="caveat"] {
+  --app-font-family: 'Caveat', cursive, sans-serif;
+}
+
+body,
+button,
+input,
+textarea,
+select {
+  font-family: var(--app-font-family);
+}
+
+/* Ensure form controls and selection contrast remain sharp and legible across all modes */
+::selection {
+  background-color: #fca5a5;
+  color: #1e1b4b;
+}
+
+.dark ::selection {
+  background-color: #dc2626;
+  color: #ffffff;
+}
+
+/* Force high contrast text in inputs and editable elements (excluding inserted reference chips) */
+input, textarea, [contenteditable] {
+  color-scheme: light dark;
+}
+
+/* Dark Mode Text Contrast inside Note Editor and contenteditable */
+.dark input:not([type="date"]):not([type="checkbox"]),
+.dark textarea,
+.dark [contenteditable],
+.dark [contenteditable] p,
+.dark [contenteditable] div,
+.dark [contenteditable] span:not([data-ref]):not(.ref-click-btn),
+.dark [contenteditable] b,
+.dark [contenteditable] i,
+.dark [contenteditable] u,
+.dark [contenteditable] font {
+  color: #f8fafc !important;
+  caret-color: #f87171 !important;
+}
+
+/* Light Mode Text Contrast inside Note Editor and contenteditable */
+:root:not(.dark) input:not([type="date"]):not([type="checkbox"]),
+:root:not(.dark) textarea,
+:root:not(.dark) [contenteditable],
+:root:not(.dark) [contenteditable] p,
+:root:not(.dark) [contenteditable] div,
+:root:not(.dark) [contenteditable] span:not([data-ref]):not(.ref-click-btn),
+:root:not(.dark) [contenteditable] b,
+:root:not(.dark) [contenteditable] i,
+:root:not(.dark) [contenteditable] u,
+:root:not(.dark) [contenteditable] font {
+  color: #0f172a !important;
+  caret-color: #dc2626 !important;
+}
+
+/* Reference Chips / Scripture Bubbles must ALWAYS retain their signature crimson red text and background */
+[data-ref],
+[data-ref] *,
+[data-ref] span,
+.ref-click-btn {
+  color: #dc2626 !important; /* text-red-600 */
+}
+
+.dark [data-ref],
+.dark [data-ref] *,
+.dark [data-ref] span,
+.dark .ref-click-btn {
+  color: #f87171 !important; /* text-red-400 */
+}
+
+/* When a specific custom font (like Literata, Crimson Pro, Nunito, Slab, Caveat) is selected, apply it everywhere */
+:root:not([data-app-font="system"]) [contenteditable],
+:root:not([data-app-font="system"]) [contenteditable] *,
+:root:not([data-app-font="system"]) .font-serif,
+:root:not([data-app-font="system"]) .prose,
+:root:not([data-app-font="system"]) .prose *,
+body:not([data-app-font="system"]) [contenteditable],
+body:not([data-app-font="system"]) [contenteditable] *,
+body:not([data-app-font="system"]) .font-serif,
+body:not([data-app-font="system"]) .prose,
+body:not([data-app-font="system"]) .prose * {
+  font-family: var(--app-font-family) !important;
+}
+
+/* Original Default (System): Clean Sans UI + Classic Literary Serif for note body and scripture snippets */
+:root[data-app-font="system"] .font-serif,
+:root[data-app-font="system"] [contenteditable],
+body[data-app-font="system"] .font-serif,
+body[data-app-font="system"] [contenteditable] {
+  font-family: Georgia, Cambria, 'Times New Roman', Times, serif;
+}
+
 /* Inline Bible Reference Chips / Tags */
-[data-ref] {
-  display: inline-flex !important;
-  align-items: center !important;
+[data-ref],
+.ref-chip,
+.ref-click-btn {
+  display: inline-block !important;
   vertical-align: baseline !important;
-  margin: 0 4px !important;
-  padding: 2px 8px !important;
-  font-size: 0.9em !important;
+  font-size: 0.88em !important;
   font-weight: 600 !important;
-  line-height: 1.2 !important;
+  line-height: 1.3 !important;
   border-radius: 6px !important;
+  border: none !important;
+  outline: none !important;
   box-shadow: none !important;
   white-space: nowrap !important;
+  cursor: pointer !important;
+  touch-action: manipulation !important;
+  -webkit-tap-highlight-color: rgba(220, 38, 38, 0.2) !important;
+  pointer-events: auto !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+[data-ref] {
+  margin: 0 3px !important;
+  padding: 1px 7px !important;
 }
 
 [data-ref] .ref-click-btn {
-  display: inline-flex !important;
-  align-items: center !important;
-  line-height: 1.2 !important;
+  display: inline-block !important;
+  vertical-align: baseline !important;
+  line-height: 1.3 !important;
   font-size: 1em !important;
+  padding: 0 !important;
+  margin: 0 !important;
 }
+
+/* Editor Font Sizes */
+[contenteditable] font[size="1"],
+[contenteditable] font[size="2"] {
+  font-size: 0.85rem !important;
+}
+
+[contenteditable] font[size="3"],
+[contenteditable] font[size="4"] {
+  font-size: 1rem !important; /* Medium matches 16px default text */
+}
+
+[contenteditable] font[size="5"] {
+  font-size: 1.35rem !important;
+}
+
+[contenteditable] font[size="6"],
+[contenteditable] font[size="7"] {
+  font-size: 1.75rem !important;
+}
+

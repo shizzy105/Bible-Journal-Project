@@ -24,6 +24,8 @@ import {
   AlignCenter,
   AlignRight,
   Highlighter,
+  Undo2,
+  Redo2,
 } from 'lucide-react';
 import {
   JournalEntry,
@@ -41,11 +43,142 @@ import {
   parseBibleReferences,
   processHtmlWithReferences,
   createRefChipHtml,
+  formatDateDDMMYYYY,
 } from '../utils/bibleParser';
 import { BibleVersePopup } from './BibleVersePopup';
 import { VoiceRecorderModal } from './VoiceRecorderModal';
 import { DrawingCanvasModal } from './DrawingCanvasModal';
 import { InsertReferenceModal } from './InsertReferenceModal';
+
+// Helpers for caret character offset tracking inside contenteditable elements
+function getCaretCharacterOffsetWithin(element: HTMLElement): { start: number; end: number } {
+  let start = 0;
+  let end = 0;
+  const sel = window.getSelection();
+  if (sel && sel.rangeCount > 0) {
+    const range = sel.getRangeAt(0);
+    if (element.contains(range.commonAncestorContainer)) {
+      const preCaretRange = range.cloneRange();
+      preCaretRange.selectNodeContents(element);
+      preCaretRange.setEnd(range.startContainer, range.startOffset);
+      start = preCaretRange.toString().length;
+      end = start + range.toString().length;
+    }
+  }
+  return { start, end };
+}
+
+function setCaretCharacterOffsetWithin(element: HTMLElement, startOffset: number, endOffset: number = startOffset) {
+  const sel = window.getSelection();
+  if (!sel) return;
+
+  let currentPos = 0;
+  let startNode: Node | null = null;
+  let startNodeOffset = 0;
+  let endNode: Node | null = null;
+  let endNodeOffset = 0;
+
+  function traverse(node: Node) {
+    if (startNode && endNode) return;
+
+    if (node.nodeType === Node.TEXT_NODE) {
+      const textLen = node.textContent?.length || 0;
+      if (!startNode && currentPos + textLen >= startOffset) {
+        startNode = node;
+        startNodeOffset = Math.max(0, startOffset - currentPos);
+      }
+      if (!endNode && currentPos + textLen >= endOffset) {
+        endNode = node;
+        endNodeOffset = Math.max(0, endOffset - currentPos);
+      }
+      currentPos += textLen;
+    } else {
+      for (let i = 0; i < node.childNodes.length; i++) {
+        traverse(node.childNodes[i]);
+      }
+    }
+  }
+
+  traverse(element);
+
+  if (!startNode) {
+    startNode = element;
+    startNodeOffset = element.childNodes.length;
+  }
+  if (!endNode) {
+    endNode = startNode;
+    endNodeOffset = startNodeOffset;
+  }
+
+  try {
+    const range = document.createRange();
+    range.setStart(startNode, startNodeOffset);
+    range.setEnd(endNode, endNodeOffset);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  } catch (e) {
+    console.warn('Failed to set caret character offset:', e);
+  }
+}
+
+// Utility to keep the active caret/selection comfortably visible above the software keyboard & bottom bar
+export const ensureCaretVisible = (safetyMargin = 80) => {
+  if (typeof window === 'undefined') return;
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return;
+
+  const range = sel.getRangeAt(0);
+  const container = range.commonAncestorContainer;
+  const editableEl = (
+    container.nodeType === Node.ELEMENT_NODE
+      ? (container as HTMLElement).closest('[contenteditable="true"], input, textarea')
+      : container.parentElement?.closest('[contenteditable="true"], input, textarea')
+  ) as HTMLElement | null;
+
+  if (!editableEl) return;
+
+  let rect = range.getBoundingClientRect();
+
+  // Handle collapsed caret with 0x0 rect by creating a temporary zero-width marker
+  if (rect.width === 0 && rect.height === 0) {
+    try {
+      const span = document.createElement('span');
+      span.appendChild(document.createTextNode('\u200b'));
+      const cloned = range.cloneRange();
+      cloned.insertNode(span);
+      rect = span.getBoundingClientRect();
+      if (span.parentNode) {
+        span.parentNode.removeChild(span);
+      }
+    } catch {
+      const node = range.startContainer;
+      const parentEl = node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : node.parentElement;
+      if (parentEl) {
+        rect = parentEl.getBoundingClientRect();
+      }
+    }
+  }
+
+  if (!rect || (rect.top === 0 && rect.bottom === 0 && rect.left === 0 && rect.right === 0)) return;
+
+  const viewport = window.visualViewport;
+  const vpHeight = viewport ? viewport.height : window.innerHeight;
+  const vpTop = viewport ? viewport.offsetTop : 0;
+  const vpBottom = vpTop + vpHeight;
+
+  // Account for fixed bottom action bar (~70px)
+  const bottomBarHeight = 70;
+  const maxAllowedBottom = vpBottom - bottomBarHeight - safetyMargin;
+  const minAllowedTop = vpTop + 75;
+
+  if (rect.bottom > maxAllowedBottom) {
+    const scrollDelta = rect.bottom - maxAllowedBottom;
+    window.scrollBy({ top: scrollDelta, behavior: 'smooth' });
+  } else if (rect.top < minAllowedTop) {
+    const scrollDelta = rect.top - minAllowedTop;
+    window.scrollBy({ top: scrollDelta, behavior: 'smooth' });
+  }
+};
 
 interface NoteEditorScreenProps {
   entry: JournalEntry;
@@ -58,34 +191,48 @@ interface NoteEditorScreenProps {
 // Sub-component for clean, auto-expanding Rich Text Block with inline Scripture links & formatting support
 interface TextBlockItemProps {
   block: TextBlock;
+  blockIndex?: number;
+  totalBlocksCount?: number;
   onChange: (content: string) => void;
   onDeleteBlock: () => void;
   onOpenVerse: (match: BibleReferenceMatch) => void;
+  onSelectionChange?: () => void;
   darkMode: boolean;
   autoFocus?: boolean;
 }
 
 const TextBlockItem: React.FC<TextBlockItemProps> = ({
   block,
+  blockIndex,
+  totalBlocksCount,
   onChange,
   onDeleteBlock,
   onOpenVerse,
+  onSelectionChange,
   darkMode,
   autoFocus,
 }) => {
   const editorRef = useRef<HTMLDivElement | null>(null);
+  const isInitialMount = useRef(true);
+  const prevAutoFocusRef = useRef(false);
+  const lastTapHandledRef = useRef<number>(0);
+  const touchStartPosRef = useRef<{ x: number; y: number; time: number; target: HTMLElement | null } | null>(null);
 
-  // Helper to place caret at end of contenteditable element
+  // Helper to place caret at end of contenteditable element safely without forcing page jump or scroll shift
   const focusEditorAndPlaceCaret = () => {
     if (!editorRef.current) return;
-    editorRef.current.focus();
-    const sel = window.getSelection();
-    if (sel) {
-      const range = document.createRange();
-      range.selectNodeContents(editorRef.current);
-      range.collapse(false);
-      sel.removeAllRanges();
-      sel.addRange(range);
+    try {
+      editorRef.current.focus({ preventScroll: true });
+      const sel = window.getSelection();
+      if (sel) {
+        const range = document.createRange();
+        range.selectNodeContents(editorRef.current);
+        range.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    } catch {
+      // ignore
     }
   };
 
@@ -95,52 +242,167 @@ const TextBlockItem: React.FC<TextBlockItemProps> = ({
     return processHtmlWithReferences(text);
   };
 
-  // Sync content updates
+  // Initialize and synchronize content updates safely without destroying active DOM cursor
   useEffect(() => {
-    if (editorRef.current) {
-      const html = buildHtmlFromText(block.content);
-      if (editorRef.current.innerHTML !== html) {
-        editorRef.current.innerHTML = html;
-        if (autoFocus) {
-          focusEditorAndPlaceCaret();
-        }
+    if (!editorRef.current) return;
+
+    const html = buildHtmlFromText(block.content);
+
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      editorRef.current.innerHTML = html;
+      if (autoFocus) {
+        focusEditorAndPlaceCaret();
       }
+      return;
+    }
+
+    // Crucial: If the user is currently focused/editing in this element, DO NOT overwrite innerHTML
+    if (document.activeElement === editorRef.current) {
+      return;
+    }
+
+    if (editorRef.current.innerHTML !== html) {
+      editorRef.current.innerHTML = html;
     }
   }, [block.content]);
 
+  // Handle autoFocus ONLY on initial transition from false -> true when NOT already focused
   useEffect(() => {
-    if (autoFocus) {
-      focusEditorAndPlaceCaret();
+    if (autoFocus && !prevAutoFocusRef.current) {
+      if (document.activeElement !== editorRef.current) {
+        focusEditorAndPlaceCaret();
+      }
     }
+    prevAutoFocusRef.current = !!autoFocus;
   }, [autoFocus]);
+
+  // Direct native DOM capture listeners for mobile Android WebView / Capacitor instant tap detection
+  useEffect(() => {
+    const el = editorRef.current;
+    if (!el) return;
+
+    const triggerOpenVerse = (refEl: HTMLElement) => {
+      const refStr = refEl.getAttribute('data-ref');
+      if (refStr) {
+        const matches = parseBibleReferences(refStr);
+        if (matches.length > 0) {
+          if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+          }
+          lastTapHandledRef.current = Date.now();
+          onOpenVerse(matches[0]);
+        }
+      }
+    };
+
+    const onTouchStartCapture = (e: TouchEvent) => {
+      if (e.touches.length !== 1) {
+        touchStartPosRef.current = null;
+        return;
+      }
+      const touch = e.touches[0];
+      const target = e.target as HTMLElement | null;
+      const refSpan = target?.closest('[data-ref]') as HTMLElement | null;
+      if (refSpan) {
+        // Prevent contenteditable from stealing focus and requiring long press
+        e.stopPropagation();
+        touchStartPosRef.current = {
+          x: touch.clientX,
+          y: touch.clientY,
+          time: Date.now(),
+          target: refSpan,
+        };
+      } else {
+        touchStartPosRef.current = null;
+      }
+    };
+
+    const onTouchMoveCapture = (e: TouchEvent) => {
+      if (!touchStartPosRef.current || e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      const dist = Math.hypot(
+        touch.clientX - touchStartPosRef.current.x,
+        touch.clientY - touchStartPosRef.current.y
+      );
+      if (dist > 15) {
+        touchStartPosRef.current = null;
+      }
+    };
+
+    const onTouchEndCapture = (e: TouchEvent) => {
+      if (!touchStartPosRef.current) return;
+      const start = touchStartPosRef.current;
+      touchStartPosRef.current = null;
+
+      const duration = Date.now() - start.time;
+      // Fast single tap response (< 600ms)
+      if (duration < 600 && start.target) {
+        e.preventDefault();
+        e.stopPropagation();
+        triggerOpenVerse(start.target);
+      }
+    };
+
+    const onClickCapture = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      const refSpan = target?.closest('[data-ref]') as HTMLElement | null;
+
+      // Prevent duplicate trigger if touched within last 500ms
+      if (Date.now() - lastTapHandledRef.current < 500) {
+        if (refSpan) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        return;
+      }
+
+      if (refSpan) {
+        e.preventDefault();
+        e.stopPropagation();
+        triggerOpenVerse(refSpan);
+      }
+    };
+
+    el.addEventListener('touchstart', onTouchStartCapture, { capture: true, passive: false });
+    el.addEventListener('touchmove', onTouchMoveCapture, { capture: true, passive: true });
+    el.addEventListener('touchend', onTouchEndCapture, { capture: true, passive: false });
+    el.addEventListener('click', onClickCapture, { capture: true });
+
+    return () => {
+      el.removeEventListener('touchstart', onTouchStartCapture, { capture: true });
+      el.removeEventListener('touchmove', onTouchMoveCapture, { capture: true });
+      el.removeEventListener('touchend', onTouchEndCapture, { capture: true });
+      el.removeEventListener('click', onClickCapture, { capture: true });
+    };
+  }, [onOpenVerse]);
 
   const handleInput = () => {
     if (!editorRef.current) return;
     onChange(editorRef.current.innerHTML);
+    onSelectionChange?.();
+    ensureCaretVisible(70);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    // If Backspace key on empty block, delete the text block
-    if (e.key === 'Backspace' && (!block.content || block.content.trim() === '')) {
+    // Prevent accidental block deletion
+    if (e.key === 'Backspace') {
+      const el = editorRef.current;
+      const text = el ? (el.innerText || '').replace(/[\u200B\u00A0\s]/g, '') : '';
+      const hasMediaOrRef = el ? !!el.querySelector('[data-ref], img, audio, video') : false;
+
+      // If the block has text content or reference chips, DO NOT delete the block container!
+      if (text.length > 0 || hasMediaOrRef) {
+        return;
+      }
+
+      // If this is the only block, never delete it
+      if (totalBlocksCount !== undefined && totalBlocksCount <= 1) {
+        return;
+      }
+
       e.preventDefault();
       onDeleteBlock();
-    }
-  };
-
-  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement;
-    // Clicked on scripture tag -> Open Verse Reader
-    const refSpan = target.closest('[data-ref]');
-    if (refSpan) {
-      e.stopPropagation();
-      const refStr = refSpan.getAttribute('data-ref');
-      if (refStr) {
-        const matches = parseBibleReferences(refStr);
-        if (matches.length > 0) {
-          onOpenVerse(matches[0]);
-        }
-      }
-      return;
     }
   };
 
@@ -150,11 +412,15 @@ const TextBlockItem: React.FC<TextBlockItemProps> = ({
         ref={editorRef}
         contentEditable
         suppressContentEditableWarning
+        data-block-index={blockIndex}
         onInput={handleInput}
         onKeyDown={handleKeyDown}
-        onClick={handleClick}
+        onKeyUp={() => onSelectionChange?.()}
+        onMouseUp={() => onSelectionChange?.()}
+        onFocus={() => onSelectionChange?.()}
         data-placeholder="Start typing..."
-        className="w-full bg-transparent font-serif text-lg sm:text-xl leading-relaxed text-stone-900 dark:text-stone-100 focus:outline-none p-0 empty:before:content-[attr(data-placeholder)] empty:before:text-stone-400/40 select-text"
+        style={{ color: darkMode ? '#f8fafc' : '#0f172a' }}
+        className="w-full bg-transparent font-serif text-base sm:text-lg leading-relaxed text-stone-900 dark:text-stone-100 focus:outline-none p-0 empty:before:content-[attr(data-placeholder)] empty:before:text-stone-400/40 select-text"
       />
     </div>
   );
@@ -181,12 +447,504 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
   const [showVoiceRecorder, setShowVoiceRecorder] = useState<boolean>(false);
   const [showDrawingCanvas, setShowDrawingCanvas] = useState<boolean>(false);
   const [showReferenceModal, setShowReferenceModal] = useState<boolean>(false);
+  const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
   const [customRefInput, setCustomRefInput] = useState<string>('Matt 5 v 7-20');
   const [showFormatToolbar, setShowFormatToolbar] = useState<boolean>(false);
+  const dateInputRef = useRef<HTMLInputElement>(null);
+
+  const [activeFormats, setActiveFormats] = useState<{
+    bold: boolean;
+    italic: boolean;
+    underline: boolean;
+    fontSize: string;
+    align: 'left' | 'center' | 'right';
+  }>({
+    bold: false,
+    italic: false,
+    underline: false,
+    fontSize: '3',
+    align: 'left',
+  });
+
+  // Latest state reference for instant save flush on back or unmount
+  const latestDataRef = useRef({ title, blocks, dateString, isPinned });
+  latestDataRef.current = { title, blocks, dateString, isPinned };
+
+  const flushSave = () => {
+    try {
+      const updated: JournalEntry = {
+        ...entry,
+        title: latestDataRef.current.title,
+        blocks: latestDataRef.current.blocks,
+        dateString: latestDataRef.current.dateString,
+        pinned: latestDataRef.current.isPinned,
+        updatedAt: new Date().toISOString(),
+      };
+      onSave(updated);
+    } catch {
+      // ignore
+    }
+  };
+
+  // Intercept back button / modal dismissal in editor
+  const handleEditorBack = () => {
+    if (showDeleteModal) {
+      setShowDeleteModal(false);
+      return;
+    }
+    if (showReferenceModal) {
+      setShowReferenceModal(false);
+      return;
+    }
+    if (activePopupMatch) {
+      setActivePopupMatch(null);
+      return;
+    }
+    if (showVoiceRecorder) {
+      setShowVoiceRecorder(false);
+      return;
+    }
+    if (showDrawingCanvas) {
+      setShowDrawingCanvas(false);
+      return;
+    }
+    if (showFormatToolbar) {
+      setShowFormatToolbar(false);
+      return;
+    }
+    flushSave();
+    onBack();
+  };
+
+  // Close modals when user presses popstate / hardware back
+  useEffect(() => {
+    const handlePopState = (e?: Event) => {
+      let modalClosed = false;
+      if (showDeleteModal) {
+        setShowDeleteModal(false);
+        modalClosed = true;
+      } else if (showReferenceModal) {
+        setShowReferenceModal(false);
+        modalClosed = true;
+      } else if (activePopupMatch) {
+        setActivePopupMatch(null);
+        modalClosed = true;
+      } else if (showVoiceRecorder) {
+        setShowVoiceRecorder(false);
+        modalClosed = true;
+      } else if (showDrawingCanvas) {
+        setShowDrawingCanvas(false);
+        modalClosed = true;
+      } else if (showFormatToolbar) {
+        setShowFormatToolbar(false);
+        modalClosed = true;
+      }
+
+      if (modalClosed && e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('app:android-back', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('app:android-back', handlePopState);
+      flushSave();
+    };
+  }, [
+    showDeleteModal,
+    showReferenceModal,
+    activePopupMatch,
+    showVoiceRecorder,
+    showDrawingCanvas,
+    showFormatToolbar,
+  ]);
+
+  // Undo & Redo History State
+  interface EditorSnapshot {
+    title: string;
+    blocks: JournalBlock[];
+    dateString: string;
+    isPinned: boolean;
+  }
+
+  const undoStackRef = useRef<EditorSnapshot[]>([]);
+  const redoStackRef = useRef<EditorSnapshot[]>([]);
+  const [canUndo, setCanUndo] = useState<boolean>(false);
+  const [canRedo, setCanRedo] = useState<boolean>(false);
+  const isHistoryNavigatingRef = useRef<boolean>(false);
+  const lastSnapshotStrRef = useRef<string>('');
+  const snapshotDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Initialize initial snapshot
+  useEffect(() => {
+    lastSnapshotStrRef.current = JSON.stringify({
+      title: entry.title,
+      blocks: entry.blocks,
+      dateString: entry.dateString,
+      isPinned: entry.pinned || false,
+    });
+    undoStackRef.current = [];
+    redoStackRef.current = [];
+    setCanUndo(false);
+    setCanRedo(false);
+  }, [entry.id]);
+
+  const pushHistorySnapshot = (immediate = false) => {
+    if (isHistoryNavigatingRef.current) return;
+
+    const currentSnapshot: EditorSnapshot = {
+      title,
+      blocks: JSON.parse(JSON.stringify(blocks)),
+      dateString,
+      isPinned,
+    };
+
+    const currentStr = JSON.stringify(currentSnapshot);
+    if (currentStr === lastSnapshotStrRef.current) return;
+
+    const performPush = () => {
+      if (lastSnapshotStrRef.current) {
+        try {
+          const prevSnapshot: EditorSnapshot = JSON.parse(lastSnapshotStrRef.current);
+          undoStackRef.current = [...undoStackRef.current.slice(-40), prevSnapshot];
+          redoStackRef.current = [];
+          setCanUndo(true);
+          setCanRedo(false);
+        } catch (_) {}
+      }
+      lastSnapshotStrRef.current = currentStr;
+    };
+
+    if (immediate) {
+      if (snapshotDebounceTimerRef.current) clearTimeout(snapshotDebounceTimerRef.current);
+      performPush();
+    } else {
+      if (snapshotDebounceTimerRef.current) clearTimeout(snapshotDebounceTimerRef.current);
+      snapshotDebounceTimerRef.current = setTimeout(performPush, 400);
+    }
+  };
+
+  // Push snapshot on state changes
+  useEffect(() => {
+    if (!isHistoryNavigatingRef.current) {
+      pushHistorySnapshot(false);
+    }
+  }, [title, blocks, dateString, isPinned]);
+
+  const handleUndo = () => {
+    if (undoStackRef.current.length === 0) return;
+
+    const currentSnapshot: EditorSnapshot = {
+      title,
+      blocks: JSON.parse(JSON.stringify(blocks)),
+      dateString,
+      isPinned,
+    };
+
+    const previous = undoStackRef.current[undoStackRef.current.length - 1];
+    undoStackRef.current = undoStackRef.current.slice(0, -1);
+    redoStackRef.current = [...redoStackRef.current, currentSnapshot];
+
+    isHistoryNavigatingRef.current = true;
+    setTitle(previous.title);
+    setBlocks(previous.blocks);
+    setDateString(previous.dateString);
+    setIsPinned(previous.isPinned);
+    lastSnapshotStrRef.current = JSON.stringify(previous);
+
+    setCanUndo(undoStackRef.current.length > 0);
+    setCanRedo(true);
+
+    setTimeout(() => {
+      isHistoryNavigatingRef.current = false;
+    }, 100);
+  };
+
+  const handleRedo = () => {
+    if (redoStackRef.current.length === 0) return;
+
+    const currentSnapshot: EditorSnapshot = {
+      title,
+      blocks: JSON.parse(JSON.stringify(blocks)),
+      dateString,
+      isPinned,
+    };
+
+    const next = redoStackRef.current[redoStackRef.current.length - 1];
+    redoStackRef.current = redoStackRef.current.slice(0, -1);
+    undoStackRef.current = [...undoStackRef.current, currentSnapshot];
+
+    isHistoryNavigatingRef.current = true;
+    setTitle(next.title);
+    setBlocks(next.blocks);
+    setDateString(next.dateString);
+    setIsPinned(next.isPinned);
+    lastSnapshotStrRef.current = JSON.stringify(next);
+
+    setCanUndo(true);
+    setCanRedo(redoStackRef.current.length > 0);
+
+    setTimeout(() => {
+      isHistoryNavigatingRef.current = false;
+    }, 100);
+  };
+
+  // Keyboard listener for Ctrl+Z and Ctrl+Y / Ctrl+Shift+Z
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        if (e.shiftKey) {
+          e.preventDefault();
+          handleRedo();
+        } else {
+          e.preventDefault();
+          handleUndo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [canUndo, canRedo, title, blocks, dateString, isPinned]);
+
+  interface SavedEditorState {
+    entryId: string;
+    blockIndex: number;
+    blockId?: string;
+    startOffset: number;
+    endOffset: number;
+    scrollY: number;
+    wasFocused: boolean;
+    rangeCloned?: Range | null;
+    timestamp: number;
+  }
+
+  const lastSelectionRef = useRef<Range | null>(null);
+  const savedEditorStateRef = useRef<SavedEditorState | null>(null);
+
+  const updateFormatState = () => {
+    if (typeof document === 'undefined') return;
+    try {
+      const isBold = document.queryCommandState('bold');
+      const isItalic = document.queryCommandState('italic');
+      const isUnderline = document.queryCommandState('underline');
+
+      let sizeVal = document.queryCommandValue('fontSize') || '3';
+      if (sizeVal === '1' || sizeVal === '2') sizeVal = '2';
+      else if (sizeVal === '3' || sizeVal === '4') sizeVal = '3';
+      else if (sizeVal === '5') sizeVal = '5';
+      else if (sizeVal === '6' || sizeVal === '7') sizeVal = '6';
+      else sizeVal = '3';
+
+      const isCenter = document.queryCommandState('justifyCenter');
+      const isRight = document.queryCommandState('justifyRight');
+      const alignVal = isRight ? 'right' : isCenter ? 'center' : 'left';
+
+      setActiveFormats({
+        bold: isBold,
+        italic: isItalic,
+        underline: isUnderline,
+        fontSize: sizeVal,
+        align: alignVal,
+      });
+    } catch {
+      // ignore
+    }
+  };
+
+  const saveEditorState = () => {
+    if (typeof window === 'undefined') return;
+    const sel = window.getSelection();
+    let activeEl: HTMLElement | null = null;
+    let rangeCloned: Range | null = null;
+
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      const container = range.commonAncestorContainer;
+      activeEl = (
+        container.nodeType === Node.ELEMENT_NODE
+          ? (container as HTMLElement).closest('[contenteditable="true"]')
+          : container.parentElement?.closest('[contenteditable="true"]')
+      ) as HTMLElement | null;
+
+      if (activeEl) {
+        rangeCloned = range.cloneRange();
+        lastSelectionRef.current = rangeCloned;
+      }
+    }
+
+    const isFocused = !!activeEl && document.activeElement === activeEl;
+
+    if (activeEl) {
+      const blockIdxStr = activeEl.getAttribute('data-block-index');
+      const blockIdx = blockIdxStr ? parseInt(blockIdxStr, 10) : activeBlockIndex;
+      const offsets = getCaretCharacterOffsetWithin(activeEl);
+
+      const state: SavedEditorState = {
+        entryId: entry.id,
+        blockIndex: isNaN(blockIdx) ? activeBlockIndex : blockIdx,
+        blockId: blocks[blockIdx]?.id,
+        startOffset: offsets.start,
+        endOffset: offsets.end,
+        scrollY: window.scrollY,
+        wasFocused: isFocused,
+        rangeCloned,
+        timestamp: Date.now(),
+      };
+
+      savedEditorStateRef.current = state;
+      try {
+        sessionStorage.setItem(
+          `editor_state_${entry.id}`,
+          JSON.stringify({
+            entryId: state.entryId,
+            blockIndex: state.blockIndex,
+            startOffset: state.startOffset,
+            endOffset: state.endOffset,
+            scrollY: state.scrollY,
+            wasFocused: state.wasFocused,
+            timestamp: state.timestamp,
+          })
+        );
+      } catch {
+        // ignore
+      }
+    } else {
+      savedEditorStateRef.current = {
+        entryId: entry.id,
+        blockIndex: activeBlockIndex,
+        startOffset: 0,
+        endOffset: 0,
+        scrollY: window.scrollY,
+        wasFocused: false,
+        timestamp: Date.now(),
+      };
+    }
+  };
+
+  const restoreEditorState = (forceFocus = false) => {
+    let state = savedEditorStateRef.current;
+
+    if (!state || state.entryId !== entry.id) {
+      try {
+        const stored = sessionStorage.getItem(`editor_state_${entry.id}`);
+        if (stored) {
+          state = JSON.parse(stored);
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    if (!state || state.entryId !== entry.id) return;
+
+    window.scrollTo({ top: state.scrollY, behavior: 'instant' });
+
+    const shouldFocus = forceFocus || state.wasFocused;
+    if (!shouldFocus) return;
+
+    setTimeout(() => {
+      if (!state) return;
+      const selector = `[data-block-index="${state.blockIndex}"]`;
+      const editorEl = document.querySelector(selector) as HTMLElement | null;
+
+      if (editorEl) {
+        editorEl.focus({ preventScroll: true });
+
+        let rangeRestored = false;
+        if (state.rangeCloned) {
+          try {
+            const sel = window.getSelection();
+            if (sel) {
+              sel.removeAllRanges();
+              sel.addRange(state.rangeCloned);
+              rangeRestored = true;
+            }
+          } catch {
+            rangeRestored = false;
+          }
+        }
+
+        if (!rangeRestored) {
+          setCaretCharacterOffsetWithin(editorEl, state.startOffset, state.endOffset);
+        }
+
+        setTimeout(() => {
+          ensureCaretVisible(90);
+        }, 180);
+      }
+    }, 60);
+  };
+
+  const saveSelection = () => {
+    saveEditorState();
+    updateFormatState();
+  };
+
+  useEffect(() => {
+    const handleDocSelectionChange = () => {
+      saveSelection();
+    };
+    document.addEventListener('selectionchange', handleDocSelectionChange);
+    return () => {
+      document.removeEventListener('selectionchange', handleDocSelectionChange);
+    };
+  }, []);
+
+  // Listeners for Viewport Resize (soft keyboard) and App Background / Resume lifecycle
+  useEffect(() => {
+    const handleViewportResize = () => {
+      if (document.activeElement && document.activeElement.getAttribute('contenteditable') === 'true') {
+        ensureCaretVisible(80);
+      }
+    };
+
+    const handleViewportScroll = () => {
+      if (document.activeElement && document.activeElement.getAttribute('contenteditable') === 'true') {
+        ensureCaretVisible(80);
+      }
+    };
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleViewportResize);
+      window.visualViewport.addEventListener('scroll', handleViewportScroll);
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        saveEditorState();
+      } else if (document.visibilityState === 'visible') {
+        restoreEditorState(false);
+      }
+    };
+
+    const handlePageShow = () => {
+      restoreEditorState(false);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pageshow', handlePageShow);
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleViewportResize);
+        window.visualViewport.removeEventListener('scroll', handleViewportScroll);
+      }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pageshow', handlePageShow);
+    };
+  }, [entry.id]);
 
   const executeFormat = (command: string, value: string = '') => {
     try {
       document.execCommand(command, false, value);
+      setTimeout(updateFormatState, 10);
     } catch (err) {
       console.warn('Execute format command error:', err);
     }
@@ -340,40 +1098,184 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
     e.target.value = '';
   };
 
+  // Helper to append chip inside block element instead of after closing tag
+  const appendChipToHtmlContent = (html: string, chipHtml: string): string => {
+    if (!html || !html.trim()) return chipHtml;
+    const trimmed = html.trim();
+    if (trimmed.endsWith('</div>')) {
+      return trimmed.slice(0, -6) + '&nbsp;' + chipHtml + '</div>';
+    }
+    if (trimmed.endsWith('</p>')) {
+      return trimmed.slice(0, -4) + '&nbsp;' + chipHtml + '</p>';
+    }
+    if (trimmed.endsWith('<br>') || trimmed.endsWith('<br/>')) {
+      const lastBr = trimmed.lastIndexOf('<br');
+      return trimmed.slice(0, lastBr) + '&nbsp;' + chipHtml;
+    }
+    return trimmed + '&nbsp;' + chipHtml;
+  };
+
   // Insert Reference (e.g. Matt 5 v 7-20) into active text block or as text
   const handleInsertReferenceText = (refText: string) => {
     const trimmed = refText.trim();
     if (!trimmed) return;
-    const chipHtml = createRefChipHtml(trimmed) + '&nbsp;';
+    const chipHtml = createRefChipHtml(trimmed);
 
-    if (blocks.length === 0) {
-      const newBlock: TextBlock = {
-        id: `text-${Date.now()}`,
-        type: 'text',
-        content: chipHtml,
-      };
-      setBlocks([newBlock]);
-      setActiveBlockIndex(0);
-    } else {
-      const targetIdx = activeBlockIndex >= 0 && activeBlockIndex < blocks.length ? activeBlockIndex : blocks.length - 1;
-      const targetBlock = blocks[targetIdx];
+    let insertedInline = false;
+    const savedState = savedEditorStateRef.current;
+    const rangeToUse = lastSelectionRef.current || savedState?.rangeCloned;
 
-      if (targetBlock && targetBlock.type === 'text') {
-        setBlocks((prev) =>
-          prev.map((b, i) =>
-            i === targetIdx ? { ...b, content: (b.content ? b.content + ' ' : '') + chipHtml } : b
-          )
-        );
-      } else {
+    if (rangeToUse) {
+      try {
+        const range = rangeToUse;
+        const container = range.commonAncestorContainer;
+        const editorEl = (
+          container.nodeType === Node.ELEMENT_NODE
+            ? (container as HTMLElement).closest('[contenteditable="true"]')
+            : container.parentElement?.closest('[contenteditable="true"]')
+        ) as HTMLElement | null;
+
+        if (editorEl) {
+          editorEl.focus({ preventScroll: true });
+          const sel = window.getSelection();
+          if (sel) {
+            sel.removeAllRanges();
+            sel.addRange(range);
+
+            // Create nodes to insert: chip span + space text node
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = chipHtml + '&nbsp;';
+
+            const frag = document.createDocumentFragment();
+            let lastInsertedNode: Node | null = null;
+            while (tempDiv.firstChild) {
+              lastInsertedNode = tempDiv.firstChild;
+              frag.appendChild(lastInsertedNode);
+            }
+
+            range.deleteContents();
+            range.insertNode(frag);
+
+            // Place caret AFTER the last inserted node (after the space text node)
+            if (lastInsertedNode) {
+              const newRange = document.createRange();
+              if (lastInsertedNode.nodeType === Node.TEXT_NODE) {
+                const len = lastInsertedNode.textContent?.length || 0;
+                newRange.setStart(lastInsertedNode, len);
+                newRange.setEnd(lastInsertedNode, len);
+              } else {
+                newRange.setStartAfter(lastInsertedNode);
+                newRange.setEndAfter(lastInsertedNode);
+              }
+              newRange.collapse(true);
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+            }
+
+            // Sync updated innerHTML with state
+            const blockIdxStr = editorEl.getAttribute('data-block-index');
+            const blockIdx = blockIdxStr ? parseInt(blockIdxStr, 10) : activeBlockIndex;
+            if (!isNaN(blockIdx) && blockIdx >= 0 && blockIdx < blocks.length) {
+              const newHtml = editorEl.innerHTML;
+              setBlocks((prev) =>
+                prev.map((b, i) => (i === blockIdx && b.type === 'text' ? { ...b, content: newHtml } : b))
+              );
+            }
+
+            insertedInline = true;
+          }
+        }
+      } catch {
+        insertedInline = false;
+      }
+    }
+
+    if (!insertedInline && savedState && savedState.blockIndex >= 0 && savedState.blockIndex < blocks.length) {
+      const targetIdx = savedState.blockIndex;
+      const selector = `[data-block-index="${targetIdx}"]`;
+      const editorEl = document.querySelector(selector) as HTMLElement | null;
+
+      if (editorEl) {
+        editorEl.focus({ preventScroll: true });
+        setCaretCharacterOffsetWithin(editorEl, savedState.startOffset, savedState.endOffset);
+
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) {
+          const range = sel.getRangeAt(0);
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = chipHtml + '&nbsp;';
+
+          const frag = document.createDocumentFragment();
+          let lastInsertedNode: Node | null = null;
+          while (tempDiv.firstChild) {
+            lastInsertedNode = tempDiv.firstChild;
+            frag.appendChild(lastInsertedNode);
+          }
+
+          range.deleteContents();
+          range.insertNode(frag);
+
+          if (lastInsertedNode) {
+            const newRange = document.createRange();
+            if (lastInsertedNode.nodeType === Node.TEXT_NODE) {
+              const len = lastInsertedNode.textContent?.length || 0;
+              newRange.setStart(lastInsertedNode, len);
+              newRange.setEnd(lastInsertedNode, len);
+            } else {
+              newRange.setStartAfter(lastInsertedNode);
+              newRange.setEndAfter(lastInsertedNode);
+            }
+            newRange.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+          }
+
+          const newHtml = editorEl.innerHTML;
+          setBlocks((prev) =>
+            prev.map((b, i) => (i === targetIdx && b.type === 'text' ? { ...b, content: newHtml } : b))
+          );
+
+          insertedInline = true;
+        }
+      }
+    }
+
+    if (!insertedInline) {
+      if (blocks.length === 0) {
         const newBlock: TextBlock = {
           id: `text-${Date.now()}`,
           type: 'text',
           content: chipHtml,
         };
-        insertBlockAt(newBlock, targetIdx);
+        setBlocks([newBlock]);
+        setActiveBlockIndex(0);
+      } else {
+        const targetIdx = activeBlockIndex >= 0 && activeBlockIndex < blocks.length ? activeBlockIndex : blocks.length - 1;
+        const targetBlock = blocks[targetIdx];
+
+        if (targetBlock && targetBlock.type === 'text') {
+          setBlocks((prev) =>
+            prev.map((b, i) =>
+              i === targetIdx ? { ...b, content: appendChipToHtmlContent(b.content, chipHtml) } : b
+            )
+          );
+        } else {
+          const newBlock: TextBlock = {
+            id: `text-${Date.now()}`,
+            type: 'text',
+            content: chipHtml,
+          };
+          insertBlockAt(newBlock, targetIdx);
+        }
       }
     }
+
+    lastSelectionRef.current = null;
     setShowReferenceModal(false);
+
+    setTimeout(() => {
+      ensureCaretVisible(90);
+    }, 120);
   };
 
   const handleToggleVoicePlay = (voiceBlock: VoiceBlock) => {
@@ -419,6 +1321,19 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
     }
   };
 
+  const handleCalendarClick = () => {
+    if (dateInputRef.current) {
+      if (typeof dateInputRef.current.showPicker === 'function') {
+        try {
+          dateInputRef.current.showPicker();
+          return;
+        } catch (_) {}
+      }
+      dateInputRef.current.focus();
+      dateInputRef.current.click();
+    }
+  };
+
   return (
     <div className={`flex flex-col min-h-screen ${darkMode ? 'bg-slate-900 text-slate-100' : 'bg-white text-stone-900'}`}>
       {/* Hidden File Input for Photo Uploads */}
@@ -432,39 +1347,77 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
 
       {/* Top Navigation Bar */}
       <div
-        className={`px-4 py-3 border-b flex items-center justify-between sticky top-0 z-20 ${
+        className={`px-3 sm:px-4 py-2.5 sm:py-3 border-b flex items-center justify-between sticky top-0 z-20 ${
           darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-stone-100'
         } backdrop-blur-md`}
       >
-        <div className="flex items-center gap-2">
+        {/* Left Section: Back + Date (dd/mm/yyyy) + Undo / Redo */}
+        <div className="flex items-center gap-2 min-w-0">
           <button
-            onClick={onBack}
-            className="p-2 rounded-xl hover:bg-stone-100 dark:hover:bg-slate-800 text-stone-500 dark:text-stone-300 transition-colors"
+            onClick={handleEditorBack}
+            className="p-1.5 sm:p-2 rounded-xl hover:bg-stone-100 dark:hover:bg-slate-800 text-stone-500 dark:text-stone-300 transition-colors shrink-0"
             title="Back to Journal List"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
 
-          {/* Date Picker Button */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-stone-100 dark:bg-slate-800 text-xs font-semibold">
-            <Calendar className="w-3.5 h-3.5 text-red-500" />
+          {/* Normal Size Date Display Pill (dd/mm/yyyy) */}
+          <div
+            onClick={handleCalendarClick}
+            className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-100 dark:bg-slate-800 text-xs font-bold text-stone-700 dark:text-stone-200 hover:bg-stone-200 dark:hover:bg-slate-700 transition-colors cursor-pointer group shrink-0 border border-stone-200/70 dark:border-slate-700/70 shadow-2xs"
+            title="Change Note Date (DD/MM/YYYY)"
+          >
+            <Calendar className="w-4 h-4 text-red-500 shrink-0" />
+            <span className="text-xs font-bold tracking-tight select-none">
+              {formatDateDDMMYYYY(dateString)}
+            </span>
             <input
+              ref={dateInputRef}
               type="date"
               value={dateString}
-              onChange={(e) => setDateString(e.target.value)}
-              className="bg-transparent focus:outline-none cursor-pointer"
+              onChange={(e) => {
+                if (e.target.value) {
+                  setDateString(e.target.value);
+                }
+              }}
+              className="absolute inset-0 opacity-0 w-full h-full cursor-pointer pointer-events-auto"
             />
+          </div>
+
+          {/* Undo and Redo Controls */}
+          <div className="flex items-center gap-0.5 pl-1.5 border-l border-stone-200 dark:border-slate-800 shrink-0">
+            <button
+              type="button"
+              onClick={handleUndo}
+              disabled={!canUndo}
+              className="p-1.5 rounded-xl text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:hover:bg-transparent transition-all active:scale-90"
+              title="Undo (Ctrl+Z)"
+              aria-label="Undo"
+            >
+              <Undo2 className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={handleRedo}
+              disabled={!canRedo}
+              className="p-1.5 rounded-xl text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:hover:bg-transparent transition-all active:scale-90"
+              title="Redo (Ctrl+Y / Ctrl+Shift+Z)"
+              aria-label="Redo"
+            >
+              <Redo2 className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] text-stone-400 font-medium">
+        {/* Right Section: Save status + Pin + Delete */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <span className="text-[10px] sm:text-[11px] text-stone-400 font-medium hidden xs:inline">
             {saveStatus === 'saving' ? 'Saving...' : 'Saved'}
           </span>
 
           <button
             onClick={() => setIsPinned(!isPinned)}
-            className={`p-2 rounded-xl transition-colors ${
+            className={`p-1.5 sm:p-2 rounded-xl transition-colors ${
               isPinned
                 ? 'bg-red-600 text-white'
                 : 'hover:bg-stone-100 dark:hover:bg-slate-800 text-stone-400'
@@ -475,13 +1428,8 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
           </button>
 
           <button
-            onClick={() => {
-              if (confirm('Are you sure you want to delete this journal note?')) {
-                onDelete(entry.id);
-                onBack();
-              }
-            }}
-            className="p-2 rounded-xl hover:bg-red-950/40 text-stone-400 hover:text-red-500 transition-colors"
+            onClick={() => setShowDeleteModal(true)}
+            className="p-1.5 sm:p-2 rounded-xl hover:bg-red-500/10 text-stone-400 hover:text-red-500 transition-colors"
             title="Delete Note"
           >
             <Trash2 className="w-4 h-4" />
@@ -574,9 +1522,12 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                 {block.type === 'text' && (
                   <TextBlockItem
                     block={block}
+                    blockIndex={index}
+                    totalBlocksCount={blocks.length}
                     onChange={(content) => handleTextBlockChange(block.id, content)}
                     onDeleteBlock={() => handleDeleteBlock(index)}
                     onOpenVerse={(match) => setActivePopupMatch(match)}
+                    onSelectionChange={saveSelection}
                     darkMode={darkMode}
                     autoFocus={activeBlockIndex === index}
                   />
@@ -590,9 +1541,12 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                       type: 'text',
                       content: `${block.reference}`,
                     }}
+                    blockIndex={index}
+                    totalBlocksCount={blocks.length}
                     onChange={(content) => handleTextBlockChange(block.id, content)}
                     onDeleteBlock={() => handleDeleteBlock(index)}
                     onOpenVerse={(match) => setActivePopupMatch(match)}
+                    onSelectionChange={saveSelection}
                     darkMode={darkMode}
                   />
                 )}
@@ -673,10 +1627,14 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                   e.preventDefault();
                   executeFormat('bold');
                 }}
-                className="p-1.5 rounded-xl hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-800 dark:text-stone-100 font-bold active:scale-95 transition-transform"
+                className={`p-1.5 rounded-xl active:scale-95 transition-all ${
+                  activeFormats.bold
+                    ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-400 dark:ring-blue-500'
+                    : 'hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-800 dark:text-stone-100 font-bold'
+                }`}
                 title="Bold"
               >
-                <Bold className="w-4 h-4" />
+                <Bold className={`w-4 h-4 ${activeFormats.bold ? 'stroke-[3]' : ''}`} />
               </button>
               <button
                 type="button"
@@ -684,10 +1642,14 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                   e.preventDefault();
                   executeFormat('italic');
                 }}
-                className="p-1.5 rounded-xl hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-800 dark:text-stone-100 italic active:scale-95 transition-transform"
+                className={`p-1.5 rounded-xl active:scale-95 transition-all ${
+                  activeFormats.italic
+                    ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-400 dark:ring-blue-500'
+                    : 'hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-800 dark:text-stone-100 italic'
+                }`}
                 title="Italic"
               >
-                <Italic className="w-4 h-4" />
+                <Italic className={`w-4 h-4 ${activeFormats.italic ? 'stroke-[3]' : ''}`} />
               </button>
               <button
                 type="button"
@@ -695,10 +1657,14 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                   e.preventDefault();
                   executeFormat('underline');
                 }}
-                className="p-1.5 rounded-xl hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-800 dark:text-stone-100 underline active:scale-95 transition-transform"
+                className={`p-1.5 rounded-xl active:scale-95 transition-all ${
+                  activeFormats.underline
+                    ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-400 dark:ring-blue-500'
+                    : 'hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-800 dark:text-stone-100 underline'
+                }`}
                 title="Underline"
               >
-                <Underline className="w-4 h-4" />
+                <Underline className={`w-4 h-4 ${activeFormats.underline ? 'stroke-[3]' : ''}`} />
               </button>
             </div>
 
@@ -710,7 +1676,11 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                   e.preventDefault();
                   executeFormat('fontSize', '2');
                 }}
-                className="px-2 py-1 rounded-lg text-xs font-bold hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-700 dark:text-stone-300 active:scale-95"
+                className={`px-2 py-1 rounded-lg text-xs font-bold active:scale-95 transition-all ${
+                  activeFormats.fontSize === '2'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-700 dark:text-stone-300'
+                }`}
                 title="Small font size"
               >
                 S
@@ -721,8 +1691,12 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                   e.preventDefault();
                   executeFormat('fontSize', '3');
                 }}
-                className="px-2 py-1 rounded-lg text-sm font-bold hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-700 dark:text-stone-300 active:scale-95"
-                title="Medium font size"
+                className={`px-2 py-1 rounded-lg text-sm font-bold active:scale-95 transition-all ${
+                  activeFormats.fontSize === '3'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-700 dark:text-stone-300'
+                }`}
+                title="Medium font size (Default)"
               >
                 M
               </button>
@@ -732,7 +1706,11 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                   e.preventDefault();
                   executeFormat('fontSize', '5');
                 }}
-                className="px-2 py-1 rounded-lg text-base font-extrabold hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-800 dark:text-stone-100 active:scale-95"
+                className={`px-2 py-1 rounded-lg text-base font-extrabold active:scale-95 transition-all ${
+                  activeFormats.fontSize === '5'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-800 dark:text-stone-100'
+                }`}
                 title="Large font size"
               >
                 L
@@ -743,7 +1721,11 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                   e.preventDefault();
                   executeFormat('fontSize', '6');
                 }}
-                className="px-2 py-1 rounded-lg text-lg font-black hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-900 dark:text-white active:scale-95"
+                className={`px-2 py-1 rounded-lg text-lg font-black active:scale-95 transition-all ${
+                  activeFormats.fontSize === '6'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-900 dark:text-white'
+                }`}
                 title="Extra Large font size"
               >
                 XL
@@ -758,7 +1740,11 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                   e.preventDefault();
                   executeFormat('justifyLeft');
                 }}
-                className="p-1.5 rounded-xl hover:bg-stone-200 dark:hover:bg-slate-700 active:scale-95"
+                className={`p-1.5 rounded-xl active:scale-95 transition-all ${
+                  activeFormats.align === 'left'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'hover:bg-stone-200 dark:hover:bg-slate-700'
+                }`}
                 title="Align Left"
               >
                 <AlignLeft className="w-4 h-4" />
@@ -769,7 +1755,11 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                   e.preventDefault();
                   executeFormat('justifyCenter');
                 }}
-                className="p-1.5 rounded-xl hover:bg-stone-200 dark:hover:bg-slate-700 active:scale-95"
+                className={`p-1.5 rounded-xl active:scale-95 transition-all ${
+                  activeFormats.align === 'center'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'hover:bg-stone-200 dark:hover:bg-slate-700'
+                }`}
                 title="Align Center"
               >
                 <AlignCenter className="w-4 h-4" />
@@ -780,7 +1770,11 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                   e.preventDefault();
                   executeFormat('justifyRight');
                 }}
-                className="p-1.5 rounded-xl hover:bg-stone-200 dark:hover:bg-slate-700 active:scale-95"
+                className={`p-1.5 rounded-xl active:scale-95 transition-all ${
+                  activeFormats.align === 'right'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'hover:bg-stone-200 dark:hover:bg-slate-700'
+                }`}
                 title="Align Right"
               >
                 <AlignRight className="w-4 h-4" />
@@ -850,25 +1844,33 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
         <div className="flex items-center justify-around gap-1.5 pt-1">
           {/* Add Text Block / Toggle Format Options */}
           <button
-            onClick={() => {
+            type="button"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              saveSelection();
               if (blocks.length === 0 || blocks[blocks.length - 1].type !== 'text') {
                 handleAddTextBlock();
               }
               setShowFormatToolbar((prev) => !prev);
             }}
+            onClick={(e) => {
+              e.preventDefault();
+            }}
             className={`flex-1 py-2 px-2.5 rounded-2xl text-xs font-bold flex items-center justify-center gap-1 border transition-all active:scale-95 ${
-              showFormatToolbar
+              showFormatToolbar || activeFormats.bold || activeFormats.italic || activeFormats.underline
                 ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
                 : 'bg-stone-100 dark:bg-slate-800 hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-700 dark:text-stone-200 border-stone-200 dark:border-slate-700'
             }`}
             title="Toggle Rich Text formatting options (Bold, Italic, Underline, Size, Highlight)"
           >
-            <Type className={`w-4 h-4 ${showFormatToolbar ? 'text-white' : 'text-blue-500'}`} />
+            <Type className={`w-4 h-4 ${showFormatToolbar || activeFormats.bold || activeFormats.italic || activeFormats.underline ? 'text-white' : 'text-blue-500'}`} />
             <span>Text</span>
           </button>
 
           {/* Add Image/Photo Button */}
           <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => fileInputRef.current?.click()}
             className="flex-1 py-2 px-2.5 rounded-2xl bg-stone-100 dark:bg-slate-800 hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-700 dark:text-stone-200 text-xs font-bold flex items-center justify-center gap-1 border border-stone-200 dark:border-slate-700 transition-transform active:scale-95"
             title="Add photo or image from gallery"
@@ -879,6 +1881,8 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
 
           {/* Add Voice Note Button */}
           <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => setShowVoiceRecorder(true)}
             className="flex-1 py-2 px-2.5 rounded-2xl bg-stone-100 dark:bg-slate-800 hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-700 dark:text-stone-200 text-xs font-bold flex items-center justify-center gap-1 border border-stone-200 dark:border-slate-700 transition-transform active:scale-95"
             title="Record audio voice note"
@@ -889,6 +1893,8 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
 
           {/* Add Sketch Button */}
           <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => setShowDrawingCanvas(true)}
             className="flex-1 py-2 px-2.5 rounded-2xl bg-stone-100 dark:bg-slate-800 hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-700 dark:text-stone-200 text-xs font-bold flex items-center justify-center gap-1 border border-stone-200 dark:border-slate-700 transition-transform active:scale-95"
             title="Draw prayer sketch"
@@ -899,7 +1905,15 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
 
           {/* + Reference Button */}
           <button
-            onClick={() => setShowReferenceModal(true)}
+            type="button"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              saveSelection();
+            }}
+            onClick={() => {
+              saveSelection();
+              setShowReferenceModal(true);
+            }}
             className="flex-1 py-2 px-2.5 rounded-2xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold flex items-center justify-center gap-1 shadow-md transition-transform active:scale-95 shrink-0"
             title="Add Bible verse reference"
           >
@@ -914,6 +1928,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
         <InsertReferenceModal
           onClose={() => setShowReferenceModal(false)}
           onInsert={handleInsertReferenceText}
+          darkMode={darkMode}
         />
       )}
 
@@ -940,6 +1955,46 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
           onClose={() => setShowDrawingCanvas(false)}
           onSaveDrawing={handleAddDrawing}
         />
+      )}
+
+      {/* In-App Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+          <div
+            className={`w-full max-w-sm p-5 sm:p-6 rounded-3xl border shadow-2xl ${
+              darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-stone-200 text-stone-900'
+            }`}
+          >
+            <div className="w-12 h-12 rounded-2xl bg-red-500/10 text-red-500 flex items-center justify-center mb-3.5">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-bold mb-1">Move note to trash?</h3>
+            <p className="text-xs opacity-75 mb-5 leading-relaxed">
+              This note will be moved to <strong className="font-semibold">Recently Deleted</strong> and retained for 30 days before permanent erasure.
+            </p>
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                className="px-4 py-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  onDelete(entry.id);
+                  onBack();
+                }}
+                className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold shadow-md transition-transform active:scale-95 flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Move to Trash</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

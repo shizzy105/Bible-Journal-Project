@@ -15,9 +15,10 @@ import {
   ChevronRight,
   Bookmark,
   Settings,
+  AlertTriangle,
 } from 'lucide-react';
 import { JournalEntry } from '../types/journal';
-import { parseBibleReferences, stripHtmlTags } from '../utils/bibleParser';
+import { parseBibleReferences, getJournalEntryTextSnippet, formatDateDDMMYYYY } from '../utils/bibleParser';
 
 interface HomeScreenProps {
   entries: JournalEntry[];
@@ -25,7 +26,6 @@ interface HomeScreenProps {
   onCreateNewEntry: () => void;
   onOpenCalendar: () => void;
   onOpenSearch: () => void;
-  onOpenAndroidCode: () => void;
   onOpenSettings: () => void;
   onDeleteEntry: (entryId: string) => void;
   darkMode: boolean;
@@ -38,12 +38,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onCreateNewEntry,
   onOpenCalendar,
   onOpenSearch,
-  onOpenAndroidCode,
   onOpenSettings,
   onDeleteEntry,
   darkMode,
   onToggleDarkMode,
 }) => {
+  const [entryToDelete, setEntryToDelete] = useState<JournalEntry | null>(null);
+
   // Sort entries: Pinned entries first, then by date descending
   const sortedEntries = [...entries].sort((a, b) => {
     if (a.pinned && !b.pinned) return -1;
@@ -93,14 +94,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </button>
 
           <button
-            onClick={onOpenAndroidCode}
-            className="p-2.5 rounded-2xl hover:bg-stone-200 dark:hover:bg-slate-800 text-emerald-600 dark:text-emerald-400 transition-colors hidden sm:block"
-            title="View Native Android Code"
-          >
-            <FileCode className="w-5 h-5" />
-          </button>
-
-          <button
             onClick={onOpenSettings}
             className="p-2.5 rounded-2xl hover:bg-stone-200 dark:hover:bg-slate-800 text-stone-600 dark:text-stone-300 transition-colors"
             title="App Settings (Translations & Themes)"
@@ -137,8 +130,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             {sortedEntries.map((entry) => {
-              const firstTextBlock = entry.blocks.find((b) => b.type === 'text')?.content || '';
-              const cleanSnippet = stripHtmlTags(firstTextBlock);
+              const cleanSnippet = getJournalEntryTextSnippet(entry);
               const hasVoice = entry.blocks.some((b) => b.type === 'voice');
               const hasDrawing = entry.blocks.some((b) => b.type === 'drawing');
               const references = parseBibleReferences(cleanSnippet);
@@ -160,19 +152,21 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                         {entry.pinned && (
                           <Pin className="w-3.5 h-3.5 text-red-500 fill-current shrink-0" />
                         )}
-                        <span className="text-[11px] font-semibold text-stone-400">{entry.dateString}</span>
+                        <span className="text-[11px] font-semibold text-stone-400">
+                          {formatDateDDMMYYYY(entry.dateString)}
+                        </span>
                       </div>
 
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (confirm('Delete this entry?')) {
-                            onDeleteEntry(entry.id);
-                          }
+                          setEntryToDelete(entry);
                         }}
-                        className="p-1 rounded-lg text-stone-400 hover:text-red-500 hover:bg-stone-200/50 dark:hover:bg-slate-800 opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="p-1.5 rounded-xl text-stone-400 hover:text-red-500 hover:bg-red-500/10 dark:hover:bg-slate-800 transition-colors"
+                        title="Delete note"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
 
@@ -186,7 +180,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     </h4>
 
                     {/* Content Snippet */}
-                    <p className="text-xs text-stone-500 dark:text-stone-400 line-clamp-3 font-serif leading-relaxed mb-3">
+                    <p className="text-xs text-stone-500 dark:text-stone-400 line-clamp-3 leading-relaxed mb-3">
                       {cleanSnippet || 'No text content added yet...'}
                     </p>
                   </div>
@@ -231,6 +225,46 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       >
         <Plus className="w-7 h-7 stroke-[3]" />
       </button>
+
+      {/* In-App Delete Confirmation Modal */}
+      {entryToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+          <div
+            className={`w-full max-w-sm p-5 sm:p-6 rounded-3xl border shadow-2xl ${
+              darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-stone-200 text-stone-900'
+            }`}
+          >
+            <div className="w-12 h-12 rounded-2xl bg-red-500/10 text-red-500 flex items-center justify-center mb-3.5">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-bold mb-1">Delete "{entryToDelete.title || 'Untitled Note'}"?</h3>
+            <p className="text-xs opacity-75 mb-5 leading-relaxed">
+              This entry will be moved to <strong className="font-semibold">Recently Deleted</strong> and preserved for 30 days before permanent erasure.
+            </p>
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setEntryToDelete(null)}
+                className="px-4 py-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const id = entryToDelete.id;
+                  setEntryToDelete(null);
+                  onDeleteEntry(id);
+                }}
+                className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold shadow-md transition-transform active:scale-95 flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Move to Trash</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -9,6 +9,10 @@
   "plugins": {
     "VoiceRecorder": {
       "permission": true
+    },
+    "Keyboard": {
+      "resize": "body",
+      "resizeOnPerspectiveUnset": true
     }
   }
 }

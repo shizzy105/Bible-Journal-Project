@@ -1,5 +1,95 @@
 import { BIBLE_BOOKS, getMaxVersesForChapter } from '../data/bibleData';
 import { BibleReferenceMatch } from '../types/journal';
+import { RefFormat, getStoredRefFormat } from '../services/storage';
+
+export const BOOK_SHORT_NAMES: Record<string, string> = {
+  Genesis: 'Gen',
+  Exodus: 'Ex',
+  Leviticus: 'Lev',
+  Numbers: 'Num',
+  Deuteronomy: 'Deut',
+  Joshua: 'Josh',
+  Judges: 'Judg',
+  Ruth: 'Ruth',
+  '1 Samuel': '1 Sam',
+  '2 Samuel': '2 Sam',
+  '1 Kings': '1 Kgs',
+  '2 Kings': '2 Kgs',
+  '1 Chronicles': '1 Chron',
+  '2 Chronicles': '2 Chron',
+  Ezra: 'Ezra',
+  Nehemiah: 'Neh',
+  Esther: 'Esth',
+  Job: 'Job',
+  Psalms: 'Ps',
+  Proverbs: 'Prov',
+  Ecclesiastes: 'Eccl',
+  'Song of Solomon': 'Song',
+  Isaiah: 'Isa',
+  Jeremiah: 'Jer',
+  Lamentations: 'Lam',
+  Ezekiel: 'Ezek',
+  Daniel: 'Dan',
+  Hosea: 'Hos',
+  Joel: 'Joel',
+  Amos: 'Amos',
+  Obadiah: 'Obad',
+  Jonah: 'Jonah',
+  Micah: 'Mic',
+  Nahum: 'Nah',
+  Habakkuk: 'Hab',
+  Zephaniah: 'Zeph',
+  Haggai: 'Hag',
+  Zechariah: 'Zech',
+  Malachi: 'Mal',
+  Matthew: 'Matt',
+  Mark: 'Mark',
+  Luke: 'Luke',
+  John: 'John',
+  Acts: 'Acts',
+  Romans: 'Rom',
+  '1 Corinthians': '1 Cor',
+  '2 Corinthians': '2 Cor',
+  Galatians: 'Gal',
+  Ephesians: 'Eph',
+  Philippians: 'Phil',
+  Colossians: 'Col',
+  '1 Thessalonians': '1 Thess',
+  '2 Thessalonians': '2 Thess',
+  '1 Timothy': '1 Tim',
+  '2 Timothy': '2 Tim',
+  Titus: 'Titus',
+  Philemon: 'Philem',
+  Hebrews: 'Heb',
+  James: 'Jas',
+  '1 Peter': '1 Pet',
+  '2 Peter': '2 Pet',
+  '1 John': '1 John',
+  '2 John': '2 John',
+  '3 John': '3 John',
+  Jude: 'Jude',
+  Revelation: 'Rev',
+};
+
+export function formatRefMatch(match: BibleReferenceMatch, format?: RefFormat): string {
+  const targetFormat = format || getStoredRefFormat();
+  const bookDisp = targetFormat === 'short'
+    ? (BOOK_SHORT_NAMES[match.bookName] || match.bookName)
+    : match.bookName;
+  const verseStr = match.endVerse && match.endVerse !== match.startVerse
+    ? `${match.startVerse}-${match.endVerse}`
+    : `${match.startVerse}`;
+  return `${bookDisp} ${match.chapter} v ${verseStr}`;
+}
+
+export function formatRefString(refText: string, format?: RefFormat): string {
+  if (!refText) return refText;
+  const matches = parseBibleReferences(refText);
+  if (matches.length > 0) {
+    return formatRefMatch(matches[0], format);
+  }
+  return refText;
+}
 
 // Build alias map: lowercase abbreviation -> Book Object
 const ALIAS_TO_BOOK_MAP = new Map<string, typeof BIBLE_BOOKS[0]>();
@@ -135,20 +225,37 @@ export function segmentTextWithReferences(text: string): TextSegment[] {
 export function stripHtmlTags(html: string): string {
   if (!html) return '';
   try {
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    return doc.body.textContent || '';
+    const prepared = html
+      .replace(/<br\s*\/?>/gi, ' ')
+      .replace(/<\/(p|div|h1|h2|h3|h4|h5|h6|li|tr|blockquote)>/gi, ' ')
+      .replace(/<(p|div|h1|h2|h3|h4|h5|h6|li|tr|blockquote)[^>]*>/gi, ' ');
+
+    const doc = new DOMParser().parseFromString(prepared, 'text/html');
+    const text = doc.body.textContent || '';
+    return text.replace(/\s+/g, ' ').trim();
   } catch {
-    return html.replace(/<[^>]*>/g, '');
+    return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
   }
 }
 
-export function createRefChipHtml(refText: string): string {
-  const escapedContent = refText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  return `<span contenteditable="false" data-ref="${escapedContent}" class="inline-flex items-center mx-1 my-0 px-2 py-[2px] rounded-md bg-red-100/90 dark:bg-red-950/70 border border-red-200/80 dark:border-red-900/80 text-red-600 dark:text-red-400 font-semibold text-[0.9em] leading-tight align-baseline select-none cursor-pointer"><span class="ref-click-btn inline-flex items-center hover:underline">${escapedContent}</span></span>`;
+export function getJournalEntryTextSnippet(entry: { blocks: Array<{ type: string; content?: string }> }): string {
+  if (!entry || !entry.blocks) return '';
+  return entry.blocks
+    .filter((b) => b.type === 'text' && b.content)
+    .map((b) => stripHtmlTags(b.content || ''))
+    .filter(Boolean)
+    .join(' ');
 }
 
-export function processHtmlWithReferences(html: string): string {
+export function createRefChipHtml(refText: string, format?: RefFormat): string {
+  const formattedText = formatRefString(refText, format);
+  const escapedContent = formattedText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return `<span contenteditable="false" data-ref="${escapedContent}" role="button" tabindex="0" style="touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; pointer-events: auto; -webkit-tap-highlight-color: transparent; cursor: pointer;" class="ref-chip inline-block align-baseline mx-1 my-0 px-2 py-[1.5px] rounded-md bg-red-100 dark:bg-red-950/80 border-0 text-red-600 dark:text-red-400 font-semibold text-[0.88em] leading-normal select-none cursor-pointer whitespace-nowrap active:scale-95 transition-transform"><span class="ref-click-btn inline-block align-baseline hover:underline" data-ref="${escapedContent}" style="pointer-events: auto; -webkit-user-select: none; user-select: none;">${escapedContent}</span></span>`;
+}
+
+export function processHtmlWithReferences(html: string, format?: RefFormat): string {
   if (!html) return '';
+  const targetFormat = format || getStoredRefFormat();
   try {
     const parser = new DOMParser();
     const doc = parser.parseFromString(`<div>${html}</div>`, 'text/html');
@@ -159,6 +266,21 @@ export function processHtmlWithReferences(html: string): string {
       if (node.nodeType === Node.ELEMENT_NODE) {
         const el = node as HTMLElement;
         if (el.hasAttribute('data-ref') || el.closest('[data-ref]')) {
+          const targetEl = el.hasAttribute('data-ref') ? el : (el.closest('[data-ref]') as HTMLElement);
+          if (targetEl) {
+            const rawRef = targetEl.getAttribute('data-ref') || '';
+            const matches = parseBibleReferences(rawRef);
+            if (matches.length > 0) {
+              const updatedRef = formatRefMatch(matches[0], targetFormat);
+              targetEl.setAttribute('data-ref', updatedRef);
+              const clickBtn = targetEl.querySelector('.ref-click-btn');
+              if (clickBtn) {
+                clickBtn.textContent = updatedRef;
+              } else {
+                targetEl.textContent = updatedRef;
+              }
+            }
+          }
           return;
         }
       }
@@ -174,7 +296,7 @@ export function processHtmlWithReferences(html: string): string {
               frag.appendChild(doc.createTextNode(text.slice(lastIndex, m.startIndex)));
             }
             const wrapper = doc.createElement('div');
-            wrapper.innerHTML = createRefChipHtml(m.fullMatch);
+            wrapper.innerHTML = createRefChipHtml(m.fullMatch, targetFormat);
             if (wrapper.firstElementChild) {
               frag.appendChild(wrapper.firstElementChild);
             } else {
@@ -200,3 +322,20 @@ export function processHtmlWithReferences(html: string): string {
     return html;
   }
 }
+
+export function formatDateDDMMYYYY(isoDateStr: string): string {
+  try {
+    if (!isoDateStr) return 'DD/MM/YYYY';
+    const parts = isoDateStr.split('T')[0].split('-');
+    if (parts.length === 3) {
+      const year = parts[0];
+      const month = parts[1].padStart(2, '0');
+      const day = parts[2].padStart(2, '0');
+      return `${day}/${month}/${year}`;
+    }
+    return isoDateStr;
+  } catch {
+    return isoDateStr;
+  }
+}
+
