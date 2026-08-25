@@ -49,6 +49,7 @@ import { BibleVersePopup } from './BibleVersePopup';
 import { VoiceRecorderModal } from './VoiceRecorderModal';
 import { DrawingCanvasModal } from './DrawingCanvasModal';
 import { InsertReferenceModal } from './InsertReferenceModal';
+import { ImageBlockItem } from './ImageBlockItem';
 
 // Helpers for caret character offset tracking inside contenteditable elements
 function getCaretCharacterOffsetWithin(element: HTMLElement): { start: number; end: number } {
@@ -1553,24 +1554,11 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
 
                 {/* 3. IMAGE BLOCK */}
                 {block.type === 'image' && (
-                  <div className="relative group my-3 flex flex-col items-center">
-                    <img
-                      src={block.imageUrl}
-                      alt="Journal Attachment"
-                      className="max-h-96 w-full object-cover rounded-3xl border border-stone-200/80 dark:border-slate-800 shadow-xs"
-                    />
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteBlock(index);
-                      }}
-                      className="absolute top-3 right-3 p-2 rounded-full bg-stone-950/70 hover:bg-red-600 text-white backdrop-blur-md transition-all shadow-md active:scale-90"
-                      title="Delete image"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                  <ImageBlockItem
+                    block={block}
+                    onDelete={() => handleDeleteBlock(index)}
+                    darkMode={darkMode}
+                  />
                 )}
 
                 {/* 4. VOICE BLOCK - Feature-rich Audio Player with progress timeline, scrubbing, and speed control */}
@@ -1589,7 +1577,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                     <img
                       src={block.dataUrl}
                       alt="Prayer Sketch"
-                      className="max-h-72 w-full object-contain rounded-2xl"
+                      className="max-h-80 w-full object-contain rounded-2xl"
                     />
                     <button
                       type="button"
@@ -1597,7 +1585,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                         e.stopPropagation();
                         handleDeleteBlock(index);
                       }}
-                      className="absolute top-5 right-5 p-2 rounded-full bg-stone-950/70 hover:bg-red-600 text-white backdrop-blur-md transition-all shadow-md active:scale-90"
+                      className="absolute top-4 right-4 p-2 rounded-full bg-stone-950/70 hover:bg-red-600 text-white backdrop-blur-md transition-all shadow-md active:scale-90"
                       title="Delete sketch"
                     >
                       <Trash2 className="w-4 h-4" />

@@ -314,14 +314,22 @@ export const RecentlyDeletedScreen: React.FC<RecentlyDeletedScreenProps> = ({
                   if (block.type === 'drawing') {
                     return (
                       <div key={block.id} className="p-2 border rounded-2xl bg-white dark:bg-slate-800">
-                        <img src={block.dataUrl} alt="Sketch" className="max-h-48 mx-auto object-contain rounded-xl" />
+                        <img
+                          src={block.dataUrl}
+                          alt="Sketch"
+                          className="max-h-56 mx-auto object-contain rounded-xl"
+                        />
                       </div>
                     );
                   }
                   if (block.type === 'image') {
                     return (
                       <div key={block.id} className="p-2 border rounded-2xl bg-white dark:bg-slate-800">
-                        <img src={block.imageUrl} alt="Attached" className="max-h-48 mx-auto object-contain rounded-xl" />
+                        <img
+                          src={block.imageUrl}
+                          alt="Attached Screenshot"
+                          className="max-h-64 mx-auto object-contain rounded-xl"
+                        />
                       </div>
                     );
                   }
