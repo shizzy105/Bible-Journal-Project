@@ -316,7 +316,7 @@ export async function createZipBackup(backup: BackupData): Promise<ZipExportOutp
   });
 
   const dateStr = new Date().toISOString().split('T')[0];
-  const filename = `bible_journal_backup_${dateStr}.zip`;
+  const filename = `asor_notes_backup_${dateStr}.zip`;
 
   return {
     zipBlob,
@@ -398,8 +398,8 @@ export async function shareZipBackupFile(
   notesCount: number
 ): Promise<{ success: boolean; shared: boolean; message: string }> {
   const dateStr = new Date().toISOString().split('T')[0];
-  const shareTitle = 'Bible Journal Backup';
-  const shareText = `Complete backup of ${notesCount} Bible Journal notes including audio, drawings, and images (${dateStr}).`;
+  const shareTitle = 'Asor Notes Backup';
+  const shareText = `Complete backup of ${notesCount} Asor Notes entries including audio, drawings, and images (${dateStr}).`;
 
   // 1. Capacitor Native Platform (Android / iOS)
   if (Capacitor.isNativePlatform()) {
@@ -421,7 +421,7 @@ export async function shareZipBackupFile(
           title: shareTitle,
           text: shareText,
           url: fileUri,
-          dialogTitle: 'Share / Export Bible Journal Backup',
+          dialogTitle: 'Share / Export Asor Notes Backup',
         });
         return { success: true, shared: true, message: 'Share sheet opened' };
       }
@@ -485,7 +485,7 @@ export async function extractAndRestoreZipBackup(
     if (!journalJsonFile) {
       return {
         valid: false,
-        error: 'No journal.json found inside the ZIP archive. Please select a valid Bible Journal backup ZIP.',
+        error: 'No journal.json found inside the ZIP archive. Please select a valid Asor Notes backup ZIP.',
       };
     }
 

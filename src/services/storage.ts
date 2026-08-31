@@ -466,7 +466,7 @@ export async function createFullBackupData(): Promise<BackupData> {
 
   const backup: BackupData = {
     version: '2.0',
-    app: 'BibleJournal',
+    app: 'AsorNotes',
     exportedAt: new Date().toISOString(),
     entries: currentEntries,
     recentlyDeleted: deletedEntries,
@@ -491,7 +491,7 @@ export function downloadBackupFile(backup: BackupData): string {
   const jsonStr = JSON.stringify(backup, null, 2);
   const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
   const dateStr = new Date().toISOString().split('T')[0];
-  const filename = `bible_journal_backup_${dateStr}.json`;
+  const filename = `asor_notes_backup_${dateStr}.json`;
 
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -557,7 +557,7 @@ export function validateBackupJson(rawInput: string | any): BackupValidationResu
     } else {
       return {
         valid: false,
-        error: 'Unrecognized format. Expected a Bible Journal backup or notes array.',
+        error: 'Unrecognized format. Expected an Asor Notes backup or notes array.',
       };
     }
 

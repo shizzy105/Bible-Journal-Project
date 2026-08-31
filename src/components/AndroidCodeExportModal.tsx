@@ -11,7 +11,7 @@ const ANDROID_FILES = [
     language: 'xml',
     code: `<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.biblejournal">
+    package="com.asornotes.app">
 
     <!-- REQUIRED MICROPHONE PERMISSIONS FOR ANDROID & CAPACITOR -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -24,7 +24,7 @@ const ANDROID_FILES = [
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
-        android:label="Bible Journal"
+        android:label="Asor Notes"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
@@ -32,7 +32,7 @@ const ANDROID_FILES = [
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
             android:name=".MainActivity"
-            android:label="Bible Journal"
+            android:label="Asor Notes"
             android:theme="@style/AppTheme.NoActionBar"
             android:launchMode="singleTask"
             android:exported="true">
@@ -50,7 +50,7 @@ const ANDROID_FILES = [
   {
     name: 'MainActivity.kt',
     language: 'kotlin',
-    code: `package com.biblejournal
+    code: `package com.asornotes.app
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -102,8 +102,8 @@ class MainActivity : BridgeActivity() {
     name: 'capacitor.config.json',
     language: 'json',
     code: `{
-  "appId": "com.biblejournal",
-  "appName": "Bible Journal",
+  "appId": "com.asornotes.app",
+  "appName": "Asor Notes",
   "webDir": "dist",
   "bundledWebRuntime": false,
   "server": {

@@ -64,18 +64,42 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
     }
 
     // Detailed error diagnostics if parsing failed:
-    // Extract first word as possible book
-    const parts = trimmed.split(/[\s.:]+/);
-    const possibleBookText = parts[0]?.toLowerCase();
+    // Find book object by checking if trimmed starts with a book or abbreviation
+    const searchLower = trimmed.toLowerCase();
+    
+    // Sort books so longer name/abbreviation matches first (e.g., '1 Corinthians' before '1')
+    let bookObj: typeof BIBLE_BOOKS[0] | undefined;
+    let matchLen = 0;
 
-    // Find book object
-    const bookObj = BIBLE_BOOKS.find(
-      (b) =>
-        b.name.toLowerCase() === possibleBookText ||
-        b.id.toLowerCase() === possibleBookText ||
-        b.abbreviations.some((a) => a.toLowerCase() === possibleBookText) ||
-        b.name.toLowerCase().startsWith(possibleBookText || '')
-    );
+    for (const b of BIBLE_BOOKS) {
+      if (searchLower.startsWith(b.name.toLowerCase()) && b.name.length > matchLen) {
+        bookObj = b;
+        matchLen = b.name.length;
+      }
+      if (searchLower.startsWith(b.id.toLowerCase()) && b.id.length > matchLen) {
+        bookObj = b;
+        matchLen = b.id.length;
+      }
+      for (const abbr of b.abbreviations) {
+        if (searchLower.startsWith(abbr.toLowerCase()) && abbr.length > matchLen) {
+          bookObj = b;
+          matchLen = abbr.length;
+        }
+      }
+    }
+
+    // Fallback: Check first word / tokens
+    const parts = trimmed.split(/[\s.:]+/);
+    if (!bookObj) {
+      const possibleBookText = parts[0]?.toLowerCase();
+      bookObj = BIBLE_BOOKS.find(
+        (b) =>
+          b.name.toLowerCase() === possibleBookText ||
+          b.id.toLowerCase() === possibleBookText ||
+          b.abbreviations.some((a) => a.toLowerCase() === possibleBookText) ||
+          b.name.toLowerCase().startsWith(possibleBookText || '')
+      );
+    }
 
     if (!bookObj) {
       return {
@@ -84,11 +108,22 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
       };
     }
 
-    const chapterNum = parseInt(parts[1], 10);
-    if (isNaN(chapterNum) || chapterNum <= 0) {
+    // Extract numbers in query after the matched book name/abbreviation
+    const queryAfterBook = trimmed.slice(matchLen).trim();
+    const numbers = (queryAfterBook || trimmed).match(/\d+/g);
+
+    if (!numbers || numbers.length === 0) {
       return {
         isValid: false,
         error: `Please specify a chapter number for ${bookObj.name} (1–${bookObj.chaptersCount}).`,
+      };
+    }
+
+    const chapterNum = parseInt(numbers[0], 10);
+    if (isNaN(chapterNum) || chapterNum <= 0) {
+      return {
+        isValid: false,
+        error: `Please specify a valid chapter number for ${bookObj.name} (1–${bookObj.chaptersCount}).`,
       };
     }
 
@@ -101,10 +136,15 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
 
     const maxVerses = getMaxVersesForChapter(bookObj.name, chapterNum);
 
-    // Extract numbers to inspect verse number
-    const numbers = trimmed.match(/\d+/g);
-    if (numbers && numbers.length >= 2) {
+    if (numbers.length >= 2) {
       const verseNum = parseInt(numbers[1], 10);
+
+      if (verseNum <= 0) {
+        return {
+          isValid: false,
+          error: `Verse number must be at least 1.`,
+        };
+      }
 
       if (verseNum > maxVerses) {
         return {
@@ -138,7 +178,7 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
 
     return {
       isValid: false,
-      error: `Invalid verse format. Try "Matt 8 v 9" or "John 3:16".`,
+      error: `Please specify a verse for ${bookObj.name} ${chapterNum} (e.g. "${bookObj.name} ${chapterNum} v 1").`,
     };
   }, [query]);
 

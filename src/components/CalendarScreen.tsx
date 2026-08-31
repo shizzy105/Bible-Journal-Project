@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Plus, FileText, BookOpen, ArrowLeft } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Plus, ArrowLeft, ChevronDown, Check } from 'lucide-react';
 import { JournalEntry } from '../types/journal';
 import { getJournalEntryTextSnippet, formatDateDDMMYYYY } from '../utils/bibleParser';
 
@@ -28,6 +28,12 @@ const MONTH_NAMES = [
 
 const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+// Generate range of selectable years (1950 - 2050)
+const selectableYears: number[] = [];
+for (let y = 1960; y <= 2045; y++) {
+  selectableYears.push(y);
+}
+
 export const CalendarScreen: React.FC<CalendarScreenProps> = ({
   entries,
   onSelectEntry,
@@ -39,6 +45,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
   const [selectedDateStr, setSelectedDateStr] = useState<string>(
     new Date().toISOString().split('T')[0]
   );
+  const [showYearMonthPicker, setShowYearMonthPicker] = useState<boolean>(false);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -54,6 +61,21 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
 
   const handleNextMonth = () => {
     setCurrentDate(new Date(year, month + 1, 1));
+  };
+
+  const handleYearChange = (newYear: number) => {
+    setCurrentDate(new Date(newYear, month, 1));
+  };
+
+  const handleMonthChange = (newMonth: number) => {
+    setCurrentDate(new Date(year, newMonth, 1));
+  };
+
+  const handleJumpToToday = () => {
+    const today = new Date();
+    setCurrentDate(new Date(today.getFullYear(), today.getMonth(), 1));
+    setSelectedDateStr(today.toISOString().split('T')[0]);
+    setShowYearMonthPicker(false);
   };
 
   // Map entries by dateString for quick lookup
@@ -87,35 +109,144 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
           <h2 className="text-base font-bold">Journal Calendar</h2>
         </div>
 
-        <div className="w-16" /> {/* Spacer */}
+        <button
+          onClick={handleJumpToToday}
+          className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-red-600/10 text-red-500 hover:bg-red-600/20 border border-red-500/20 transition-all active:scale-95"
+          title="Jump to current date"
+        >
+          Today
+        </button>
       </div>
 
       <div className="p-4 max-w-2xl mx-auto w-full space-y-6">
-        {/* Month Navigation */}
+        {/* Month Navigation & Year Selector Card */}
         <div
           className={`p-4 rounded-3xl border shadow-sm ${
             darkMode ? 'bg-slate-800/60 border-slate-700/60' : 'bg-white border-stone-200'
           }`}
         >
+          {/* Header with quick Month & Year Dropdown / Trigger */}
           <div className="flex items-center justify-between mb-4 px-2">
-            <h3 className="text-lg font-bold text-red-600 dark:text-red-400">
-              {MONTH_NAMES[month]} {year}
-            </h3>
+            <button
+              onClick={() => setShowYearMonthPicker(!showYearMonthPicker)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-red-500/10 transition-colors group border border-transparent hover:border-red-500/30"
+              title="Click to jump to any year or month"
+            >
+              <h3 className="text-lg font-bold text-red-600 dark:text-red-400 flex items-center gap-1">
+                <span>{MONTH_NAMES[month]}</span>
+                <span>{year}</span>
+              </h3>
+              <ChevronDown
+                className={`w-4 h-4 text-red-500 transition-transform duration-200 ${
+                  showYearMonthPicker ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+
             <div className="flex items-center gap-1">
               <button
                 onClick={handlePrevMonth}
                 className="p-2 rounded-full hover:bg-stone-200 dark:hover:bg-slate-700 transition-colors"
+                title="Previous month"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
               <button
                 onClick={handleNextMonth}
                 className="p-2 rounded-full hover:bg-stone-200 dark:hover:bg-slate-700 transition-colors"
+                title="Next month"
               >
                 <ChevronRight className="w-5 h-5" />
               </button>
             </div>
           </div>
+
+          {/* Expanded Year & Month Selector Scroller / Dropdown */}
+          {showYearMonthPicker && (
+            <div
+              className={`mb-4 p-4 rounded-2xl border animate-fadeIn ${
+                darkMode ? 'bg-slate-900 border-slate-700' : 'bg-stone-100 border-stone-300'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-bold text-stone-400 uppercase tracking-wider">
+                  Select Year & Month
+                </span>
+                <button
+                  onClick={() => setShowYearMonthPicker(false)}
+                  className="text-xs font-bold text-red-500 hover:underline"
+                >
+                  Done
+                </button>
+              </div>
+
+              {/* Year Scroller / Dropdown */}
+              <div className="mb-3">
+                <label className="text-xs font-semibold text-stone-400 block mb-1.5">Year:</label>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={year}
+                    onChange={(e) => handleYearChange(parseInt(e.target.value, 10))}
+                    className={`w-full p-2.5 rounded-xl font-bold text-sm border focus:outline-none focus:ring-2 focus:ring-red-500 ${
+                      darkMode
+                        ? 'bg-slate-800 border-slate-700 text-white'
+                        : 'bg-white border-stone-300 text-stone-900'
+                    }`}
+                  >
+                    {selectableYears.map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
+
+                  <button
+                    onClick={() => handleYearChange(year - 1)}
+                    className="p-2.5 rounded-xl border bg-stone-500/10 hover:bg-stone-500/20 active:scale-95"
+                    title="Previous year"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleYearChange(year + 1)}
+                    className="p-2.5 rounded-xl border bg-stone-500/10 hover:bg-stone-500/20 active:scale-95"
+                    title="Next year"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Months Grid */}
+              <div>
+                <label className="text-xs font-semibold text-stone-400 block mb-1.5">Month:</label>
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
+                  {MONTH_NAMES.map((mName, mIdx) => {
+                    const isSelectedMonth = mIdx === month;
+                    return (
+                      <button
+                        key={mName}
+                        onClick={() => {
+                          handleMonthChange(mIdx);
+                          setShowYearMonthPicker(false);
+                        }}
+                        className={`py-1.5 px-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1 ${
+                          isSelectedMonth
+                            ? 'bg-red-600 text-white shadow-sm font-bold'
+                            : darkMode
+                            ? 'bg-slate-800 hover:bg-slate-700 text-stone-300'
+                            : 'bg-white hover:bg-stone-200 text-stone-700 border border-stone-200'
+                        }`}
+                      >
+                        <span>{mName.slice(0, 3)}</span>
+                        {isSelectedMonth && <Check className="w-3 h-3" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Days of Week Header */}
           <div className="grid grid-cols-7 text-center text-xs font-bold text-stone-400 mb-2">

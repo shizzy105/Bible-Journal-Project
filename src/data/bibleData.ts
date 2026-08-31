@@ -1,4 +1,5 @@
 import { BibleBook, BibleVerse } from '../types/journal';
+import { BIBLE_CHAPTER_VERSE_COUNTS } from './bibleVerseCounts';
 
 export const BIBLE_BOOKS: BibleBook[] = [
   // Old Testament
@@ -120,13 +121,29 @@ const CHAPTER_MAX_VERSES_MAP: Record<string, Record<number, number>> = {
 };
 
 export function getMaxVersesForChapter(bookName: string, chapter: number): number {
-  if (CHAPTER_MAX_VERSES_MAP[bookName] && CHAPTER_MAX_VERSES_MAP[bookName][chapter]) {
-    return CHAPTER_MAX_VERSES_MAP[bookName][chapter];
+  if (!bookName || !chapter || chapter < 1) return 0;
+  
+  // Find canonical book from BIBLE_BOOKS
+  const searchName = bookName.trim().toLowerCase();
+  const book = BIBLE_BOOKS.find(
+    (b) =>
+      b.name.toLowerCase() === searchName ||
+      b.id.toLowerCase() === searchName ||
+      b.abbreviations.some((abbr) => abbr.toLowerCase() === searchName)
+  );
+
+  const canonicalName = book ? book.name : bookName;
+  const counts = BIBLE_CHAPTER_VERSE_COUNTS[canonicalName];
+  if (counts && counts[chapter - 1] !== undefined) {
+    return counts[chapter - 1];
   }
-  if (bookName === 'Psalms' || bookName === 'PSA') {
-    return 176;
+
+  // Fallback if book name exists in map directly
+  if (BIBLE_CHAPTER_VERSE_COUNTS[bookName] && BIBLE_CHAPTER_VERSE_COUNTS[bookName][chapter - 1] !== undefined) {
+    return BIBLE_CHAPTER_VERSE_COUNTS[bookName][chapter - 1];
   }
-  return 80;
+
+  return 0;
 }
 
 // Extensive Verbatim Offline Bible Database (Exact Authentic Text per Translation)
@@ -560,7 +577,8 @@ const VERBATIM_OFFLINE_DB: Record<string, Record<string, string>> = {
  * Universal Scripture Text Sanitizer
  * Thoroughly removes Strong's concordance tags (<S>1580</S>),
  * attached numbers (e.g., LORD3068 -> LORD, requite1580 -> requite),
- * HTML tags, brackets, and extra spaces.
+ * HTML tags, brackets, KJV translator marginal notes (e.g., "to: or, to edify profitably", ": Heb. ...", ": Gr. ..."),
+ * and extra spaces.
  */
 export function sanitizeVerseText(text: string): string {
   if (!text) return '';
@@ -578,6 +596,9 @@ export function sanitizeVerseText(text: string): string {
     .replace(/\[\d+\]/g, '')
     .replace(/\(\d+\)/g, '')
     .replace(/\{\d+\}/g, '')
+    // Remove KJV translator marginal notes and alternate translation glosses
+    .replace(/\s*(?:(?:\b[\w\s'’"-]+)?:\s*(?:or,|Heb\.|Gr\.|that is,|some read,|Chald\.|Lat\.|meaning,)[^:]*)+$/gi, '')
+    .replace(/\s+(?:[\w\s'’"-]+)?:\s*(?:or,|Heb\.|Gr\.|that is,|some read,|Chald\.|Lat\.|meaning,)[^.]*(?:\.|$)/gi, '')
     // Normalize whitespace
     .replace(/\s+/g, ' ')
     .trim();
@@ -666,7 +687,7 @@ export function getBookNumber(bookName: string): number {
 }
 
 // Persistent LocalStorage cache key
-const LOCAL_STORAGE_KEY = 'AMEN_JOURNAL_BIBLE_CACHE_V10';
+const LOCAL_STORAGE_KEY = 'AMEN_JOURNAL_BIBLE_CACHE_V12';
 
 function getStoredCache(): Record<string, string> {
   try {

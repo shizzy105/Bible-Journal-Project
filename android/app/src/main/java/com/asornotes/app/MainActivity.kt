@@ -1,4 +1,4 @@
-package com.biblejournal
+package com.asornotes.app
 
 import android.Manifest
 import android.content.pm.PackageManager

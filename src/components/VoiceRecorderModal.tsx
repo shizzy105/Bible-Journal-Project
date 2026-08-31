@@ -88,7 +88,7 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({ onClose,
         if (!permResult.value) {
           const reqResult = await VoiceRecorder.requestAudioRecordingPermission();
           if (!reqResult.value) {
-            setPermissionError('Microphone permission was denied on Android. Please open Android Settings > Apps > Bible Journal > Permissions and enable Microphone.');
+            setPermissionError('Microphone permission was denied on Android. Please open Android Settings > Apps > Asor Notes > Permissions and enable Microphone.');
             setPermissionState('denied');
             return;
           }
@@ -295,7 +295,7 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({ onClose,
             
             <div className="bg-stone-950/80 rounded-xl p-2.5 border border-stone-800 text-[10px] text-stone-400 leading-relaxed">
               <span className="text-red-400 font-bold block mb-0.5">Android App Setup Tip:</span>
-              On Android, open <strong className="text-stone-200">Settings &gt; Apps &gt; Bible Journal &gt; Permissions</strong> and set <strong className="text-stone-200">Microphone</strong> to "Allow while using app".
+              On Android, open <strong className="text-stone-200">Settings &gt; Apps &gt; Asor Notes &gt; Permissions</strong> and set <strong className="text-stone-200">Microphone</strong> to "Allow while using app".
             </div>
 
             <div className="flex flex-col gap-2 mt-1">

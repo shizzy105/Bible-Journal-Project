@@ -17,6 +17,7 @@ import {
   Settings,
   AlertTriangle,
 } from 'lucide-react';
+import { AppLogoIcon } from './AppLogoIcon';
 import { JournalEntry } from '../types/journal';
 import { parseBibleReferences, getJournalEntryTextSnippet, formatDateDDMMYYYY } from '../utils/bibleParser';
 
@@ -65,12 +66,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         }`}
       >
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-2xl bg-red-600 flex items-center justify-center text-white shadow-md ring-2 ring-red-500/30">
-            <BookOpen className="w-5 h-5" />
-          </div>
+          <AppLogoIcon className="w-9 h-9" />
           <div>
             <h1 className="text-xl font-black tracking-tight leading-none text-stone-900 dark:text-white">
-              Bible Journal
+              Asor Notes
             </h1>
           </div>
         </div>
@@ -124,7 +123,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         {sortedEntries.length === 0 ? (
           <div className="text-center py-16 text-stone-400">
             <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-30 text-red-500" />
-            <p className="text-base font-bold text-stone-600 dark:text-stone-300">Your Bible Journal is empty</p>
+            <p className="text-base font-bold text-stone-600 dark:text-stone-300">Your Asor Notes journal is empty</p>
             <p className="text-xs text-stone-400 mt-1">Tap the red + button below to write your first reflection.</p>
           </div>
         ) : (

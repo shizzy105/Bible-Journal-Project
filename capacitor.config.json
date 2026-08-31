@@ -1,6 +1,6 @@
 {
-  "appId": "com.biblejournal",
-  "appName": "Bible Journal",
+  "appId": "com.asornotes.app",
+  "appName": "Asor Notes",
   "webDir": "dist",
   "bundledWebRuntime": false,
   "server": {
