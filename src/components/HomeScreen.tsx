@@ -133,6 +133,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               const hasVoice = entry.blocks.some((b) => b.type === 'voice');
               const hasDrawing = entry.blocks.some((b) => b.type === 'drawing');
               const references = parseBibleReferences(cleanSnippet);
+              const strongsCount = (entry.blocks.reduce((acc, b) => {
+                if (b.type !== 'text') return acc;
+                const matches = b.content.match(/data-strongs="[HG]\d+"/gi);
+                return acc + (matches ? matches.length : 0);
+              }, 0));
+              const totalRefs = references.length + strongsCount;
 
               return (
                 <div
@@ -187,10 +193,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   {/* Badges / Feature Tags */}
                   <div className="flex items-center justify-between pt-2 border-t border-stone-100 dark:border-slate-800/80 text-[10px]">
                     <div className="flex items-center gap-1.5 overflow-x-auto">
-                      {references.length > 0 && (
+                      {totalRefs > 0 && (
                         <span className="px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-950/80 text-red-600 dark:text-red-400 font-bold border border-red-200 dark:border-red-900/40 flex items-center gap-1">
                           <BookOpen className="w-3 h-3" />
-                          <span>{references.length} Ref</span>
+                          <span>{totalRefs} Ref</span>
                         </span>
                       )}
                       {hasVoice && (

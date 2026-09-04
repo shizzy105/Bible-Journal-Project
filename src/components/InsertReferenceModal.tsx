@@ -3,6 +3,8 @@ import { BookOpen, X, Check, AlertCircle, Search } from 'lucide-react';
 import { BIBLE_BOOKS, getMaxVersesForChapter } from '../data/bibleData';
 import { parseBibleReferences, formatRefMatch } from '../utils/bibleParser';
 import { getStoredRefFormat } from '../services/storage';
+import { parseStrongsReference, getStrongsEntrySync, fetchStrongsEntryAsync } from '../data/strongsData';
+import { StrongsEntry } from '../types/journal';
 
 interface InsertReferenceModalProps {
   onClose: () => void;
@@ -17,7 +19,8 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
 }) => {
   // Free text query or structured selection - start empty
   const [query, setQuery] = useState<string>('');
-  const [showBookDropdown, setShowBookDropdown] = useState<boolean>(true);
+  const [showBookDropdown, setShowBookDropdown] = useState<boolean>(false);
+  const [strongsPreview, setStrongsPreview] = useState<StrongsEntry | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Compute effective dark mode if prop is not passed
@@ -32,10 +35,41 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
     }
   }, []);
 
-  // Filter book suggestions based on user input
+  // Check if current input is a Strong's reference format
+  const strongsMatch = useMemo(() => {
+    return parseStrongsReference(query);
+  }, [query]);
+
+  // Load Strong's preview asynchronously when a valid Strong's number is entered
+  useEffect(() => {
+    if (!strongsMatch || !strongsMatch.isValidRange) {
+      setStrongsPreview(null);
+      return;
+    }
+
+    const sync = getStrongsEntrySync(strongsMatch.id);
+    if (sync) {
+      setStrongsPreview(sync);
+      return;
+    }
+
+    let isMounted = true;
+    fetchStrongsEntryAsync(strongsMatch.id).then((entry) => {
+      if (isMounted && entry) {
+        setStrongsPreview(entry);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [strongsMatch]);
+
+  // Filter book suggestions based on user input (disabled for Strong's queries)
   const bookSuggestions = useMemo(() => {
-    if (!query.trim()) return BIBLE_BOOKS.slice(0, 8);
     const search = query.toLowerCase().trim();
+    // Concordance doesn't need autosuggest - hide book suggestions when typing Strong's
+    if (!search || strongsMatch || /^(?:strong'?s?\s*)?[hg]\d+/i.test(search)) return [];
     // Match against full name, id, or abbreviations
     return BIBLE_BOOKS.filter(
       (b) =>
@@ -43,13 +77,39 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
         b.id.toLowerCase().includes(search) ||
         b.abbreviations.some((abbr) => abbr.toLowerCase().includes(search))
     ).slice(0, 6);
-  }, [query]);
+  }, [query, strongsMatch]);
 
-  // Live reference validation logic with strict chapter & verse count checking
+  // Live reference validation logic with strict chapter & verse count checking + Strong's concordance
   const validationResult = useMemo(() => {
     const trimmed = query.trim();
     if (!trimmed) {
-      return { isValid: false, error: 'Please enter a scripture reference.' };
+      return { isValid: false, error: 'Please enter a scripture reference or Strong\'s concordance number (e.g. H867, G765).' };
+    }
+
+    // First check if query matches Strong's concordance (H867, G765, etc.)
+    if (strongsMatch) {
+      if (!strongsMatch.isValidRange) {
+        return {
+          isValid: false,
+          isStrongs: true,
+          error:
+            strongsMatch.type === 'H'
+              ? `Strong's Hebrew concordance numbers range from H1 to H${strongsMatch.maxAllowed}.`
+              : `Strong's Greek concordance numbers range from G1 to G${strongsMatch.maxAllowed}.`,
+        };
+      }
+
+      const preview = strongsPreview || getStrongsEntrySync(strongsMatch.id);
+      const displayLabel = preview
+        ? `${strongsMatch.id} — ${preview.lemma} (${preview.translit}): ${preview.strongs_def}`
+        : `${strongsMatch.id} (${strongsMatch.type === 'H' ? 'Hebrew' : 'Greek'} Lexicon)`;
+
+      return {
+        isValid: true,
+        isStrongs: true,
+        formatted: strongsMatch.id,
+        displayName: displayLabel,
+      };
     }
 
     // First attempt parsing with strict regex bible parser
@@ -58,6 +118,7 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
       const match = matches[0];
       return {
         isValid: true,
+        isStrongs: false,
         match,
         formatted: formatRefMatch(match, getStoredRefFormat()),
       };
@@ -104,7 +165,7 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
     if (!bookObj) {
       return {
         isValid: false,
-        error: `Book "${parts[0] || ''}" not found. Select a suggested book below.`,
+        error: `Reference "${parts[0] || ''}" not recognized. Enter a valid Bible reference (e.g. Matt 8 v 9) or Strong's # (e.g. H867, G765).`,
       };
     }
 
@@ -224,7 +285,7 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
                 Insert Scripture Reference
               </h3>
               <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-stone-500'}`}>
-                Inserts an atomic scripture link in your note
+                Inserts an atomic scripture/strongs link in your note
               </p>
             </div>
           </div>
@@ -249,7 +310,7 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
                 isDark ? 'text-slate-300' : 'text-stone-700'
               }`}
             >
-              Type Reference or Book Name:
+              Type Reference or Strong's (e.g. Matt 8 v 9, H867, G765):
             </label>
             <div className="relative flex items-center">
               <Search
@@ -272,7 +333,7 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
                   }
                 }}
                 onFocus={() => setShowBookDropdown(true)}
-                placeholder="e.g. Matt 8 v 9, Daniel 5 v 10, John 3:16"
+                placeholder="e.g. Matt 8 v 9, H867, G765, John 3:16"
                 className={`w-full pl-10 pr-4 py-2.5 rounded-2xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-red-600 shadow-inner transition-colors ${
                   isDark
                     ? 'bg-slate-950 text-white placeholder:text-slate-500 border border-slate-700'
@@ -333,9 +394,13 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
               }`}
             >
               <Check className="w-4 h-4 text-emerald-500 shrink-0" />
-              <div>
-                <span className="font-bold">Valid Reference: </span>
-                <span className="underline font-mono">{validationResult.formatted}</span>
+              <div className="overflow-hidden">
+                <span className="font-bold">
+                  {validationResult.isStrongs ? "Valid Strong's Concordance: " : 'Valid Reference: '}
+                </span>
+                <span className="underline font-mono">
+                  {validationResult.displayName || validationResult.formatted}
+                </span>
               </div>
             </div>
           ) : (
@@ -362,12 +427,15 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
             </span>
             <div className="flex flex-wrap gap-1.5">
               {[
+                'G353',
+                'H4709',
+                'H867',
+                'G765',
                 'Matt 8 v 9',
                 'Daniel 5 v 10',
                 'John 3:16',
                 '1 Cor 13:4-8',
                 'Ps 23:1-6',
-                'Rom 8:28-30',
               ].map((preset) => (
                 <button
                   key={preset}

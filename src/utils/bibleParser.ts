@@ -1,6 +1,7 @@
 import { BIBLE_BOOKS, getMaxVersesForChapter } from '../data/bibleData';
 import { BibleReferenceMatch } from '../types/journal';
 import { RefFormat, getStoredRefFormat } from '../services/storage';
+import { parseStrongsReference } from '../data/strongsData';
 
 export const BOOK_SHORT_NAMES: Record<string, string> = {
   Genesis: 'Gen',
@@ -248,6 +249,11 @@ export function getJournalEntryTextSnippet(entry: { blocks: Array<{ type: string
 }
 
 export function createRefChipHtml(refText: string, format?: RefFormat): string {
+  const strongsMatch = parseStrongsReference(refText);
+  if (strongsMatch && strongsMatch.isValidRange) {
+    const escapedContent = strongsMatch.id;
+    return `<span contenteditable="false" data-ref="${escapedContent}" data-strongs="${escapedContent}" role="button" tabindex="0" style="touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; pointer-events: auto; -webkit-tap-highlight-color: transparent; cursor: pointer;" class="ref-chip strongs-chip inline-block align-baseline mx-1 my-0 px-2 py-[1.5px] rounded-md bg-red-100 dark:bg-red-950/80 border-0 text-red-600 dark:text-red-400 font-semibold text-[0.88em] leading-normal select-none cursor-pointer whitespace-nowrap active:scale-95 transition-transform"><span class="ref-click-btn inline-block align-baseline hover:underline" data-ref="${escapedContent}" data-strongs="${escapedContent}" style="pointer-events: auto; -webkit-user-select: none; user-select: none;">${escapedContent}</span></span>`;
+  }
   const formattedText = formatRefString(refText, format);
   const escapedContent = formattedText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   return `<span contenteditable="false" data-ref="${escapedContent}" role="button" tabindex="0" style="touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; pointer-events: auto; -webkit-tap-highlight-color: transparent; cursor: pointer;" class="ref-chip inline-block align-baseline mx-1 my-0 px-2 py-[1.5px] rounded-md bg-red-100 dark:bg-red-950/80 border-0 text-red-600 dark:text-red-400 font-semibold text-[0.88em] leading-normal select-none cursor-pointer whitespace-nowrap active:scale-95 transition-transform"><span class="ref-click-btn inline-block align-baseline hover:underline" data-ref="${escapedContent}" style="pointer-events: auto; -webkit-user-select: none; user-select: none;">${escapedContent}</span></span>`;

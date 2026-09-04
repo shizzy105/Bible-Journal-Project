@@ -43,7 +43,11 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
 
     if (activeFilter === 'verses') {
       return entry.blocks.some(
-        (b) => b.type === 'verse' || (b.type === 'text' && parseBibleReferences(b.content).length > 0)
+        (b) =>
+          b.type === 'verse' ||
+          (b.type === 'text' &&
+            (parseBibleReferences(b.content).length > 0 ||
+              /data-strongs|data-ref="[HG]\d+"/i.test(b.content)))
       );
     }
     if (activeFilter === 'voice') {
@@ -57,7 +61,13 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
   });
 
   const verseCount = entries.filter((e) =>
-    e.blocks.some((b) => b.type === 'verse' || (b.type === 'text' && parseBibleReferences(b.content).length > 0))
+    e.blocks.some(
+      (b) =>
+        b.type === 'verse' ||
+        (b.type === 'text' &&
+          (parseBibleReferences(b.content).length > 0 ||
+            /data-strongs|data-ref="[HG]\d+"/i.test(b.content)))
+    )
   ).length;
   const voiceCount = entries.filter((e) => e.blocks.some((b) => b.type === 'voice')).length;
   const drawingCount = entries.filter((e) => e.blocks.some((b) => b.type === 'drawing')).length;

@@ -107,3 +107,16 @@ export interface BackupData {
 }
 
 export type AppFont = 'system' | 'literata' | 'crimson' | 'nunito' | 'slab' | 'caveat';
+
+export interface StrongsEntry {
+  id: string;
+  language: 'Hebrew' | 'Greek' | 'Aramaic';
+  number: number;
+  lemma: string;
+  translit: string;
+  pron?: string;
+  derivation?: string;
+  strongs_def: string;
+  kjv_def?: string;
+  kjv_usage?: string;
+}

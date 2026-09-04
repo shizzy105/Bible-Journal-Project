@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "Bible Journal",
+  "short_name": "BibleJournal",
+  "description": "Redmi Notes inspired Bible journaling app with automatic verse detection, Strong's concordance, calendar view, voice notes, and drawings.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#dc2626",
+  "background_color": "#1c1917",
+  "icons": [
+    {
+      "src": "/app-icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

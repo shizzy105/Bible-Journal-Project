@@ -46,10 +46,12 @@ import {
   formatDateDDMMYYYY,
 } from '../utils/bibleParser';
 import { BibleVersePopup } from './BibleVersePopup';
+import { StrongsConcordancePopup } from './StrongsConcordancePopup';
 import { VoiceRecorderModal } from './VoiceRecorderModal';
 import { DrawingCanvasModal } from './DrawingCanvasModal';
 import { InsertReferenceModal } from './InsertReferenceModal';
 import { ImageBlockItem } from './ImageBlockItem';
+import { parseStrongsReference } from '../data/strongsData';
 
 // Helpers for caret character offset tracking inside contenteditable elements
 function getCaretCharacterOffsetWithin(element: HTMLElement): { start: number; end: number } {
@@ -197,6 +199,7 @@ interface TextBlockItemProps {
   onChange: (content: string) => void;
   onDeleteBlock: () => void;
   onOpenVerse: (match: BibleReferenceMatch) => void;
+  onOpenStrongs?: (strongsId: string) => void;
   onSelectionChange?: () => void;
   darkMode: boolean;
   autoFocus?: boolean;
@@ -209,6 +212,7 @@ const TextBlockItem: React.FC<TextBlockItemProps> = ({
   onChange,
   onDeleteBlock,
   onOpenVerse,
+  onOpenStrongs,
   onSelectionChange,
   darkMode,
   autoFocus,
@@ -284,8 +288,18 @@ const TextBlockItem: React.FC<TextBlockItemProps> = ({
     if (!el) return;
 
     const triggerOpenVerse = (refEl: HTMLElement) => {
-      const refStr = refEl.getAttribute('data-ref');
+      const strongsAttr = refEl.getAttribute('data-strongs');
+      const refStr = refEl.getAttribute('data-ref') || strongsAttr;
       if (refStr) {
+        const strongsMatch = parseStrongsReference(refStr);
+        if (strongsMatch && strongsMatch.isValidRange) {
+          if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+          }
+          lastTapHandledRef.current = Date.now();
+          onOpenStrongs?.(strongsMatch.id);
+          return;
+        }
         const matches = parseBibleReferences(refStr);
         if (matches.length > 0) {
           if (document.activeElement instanceof HTMLElement) {
@@ -445,6 +459,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
 
   // Modals state
   const [activePopupMatch, setActivePopupMatch] = useState<BibleReferenceMatch | null>(null);
+  const [activeStrongsId, setActiveStrongsId] = useState<string | null>(null);
   const [showVoiceRecorder, setShowVoiceRecorder] = useState<boolean>(false);
   const [showDrawingCanvas, setShowDrawingCanvas] = useState<boolean>(false);
   const [showReferenceModal, setShowReferenceModal] = useState<boolean>(false);
@@ -501,6 +516,10 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
       setActivePopupMatch(null);
       return;
     }
+    if (activeStrongsId) {
+      setActiveStrongsId(null);
+      return;
+    }
     if (showVoiceRecorder) {
       setShowVoiceRecorder(false);
       return;
@@ -530,6 +549,9 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
       } else if (activePopupMatch) {
         setActivePopupMatch(null);
         modalClosed = true;
+      } else if (activeStrongsId) {
+        setActiveStrongsId(null);
+        modalClosed = true;
       } else if (showVoiceRecorder) {
         setShowVoiceRecorder(false);
         modalClosed = true;
@@ -558,6 +580,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
     showDeleteModal,
     showReferenceModal,
     activePopupMatch,
+    activeStrongsId,
     showVoiceRecorder,
     showDrawingCanvas,
     showFormatToolbar,
@@ -1528,6 +1551,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                     onChange={(content) => handleTextBlockChange(block.id, content)}
                     onDeleteBlock={() => handleDeleteBlock(index)}
                     onOpenVerse={(match) => setActivePopupMatch(match)}
+                    onOpenStrongs={(strongsId) => setActiveStrongsId(strongsId)}
                     onSelectionChange={saveSelection}
                     darkMode={darkMode}
                     autoFocus={activeBlockIndex === index}
@@ -1547,6 +1571,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                     onChange={(content) => handleTextBlockChange(block.id, content)}
                     onDeleteBlock={() => handleDeleteBlock(index)}
                     onOpenVerse={(match) => setActivePopupMatch(match)}
+                    onOpenStrongs={(strongsId) => setActiveStrongsId(strongsId)}
                     onSelectionChange={saveSelection}
                     darkMode={darkMode}
                   />
@@ -1925,6 +1950,15 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
         <BibleVersePopup
           match={activePopupMatch}
           onClose={() => setActivePopupMatch(null)}
+          onInsertIntoNote={handleInsertReferenceText}
+        />
+      )}
+
+      {/* Strong's Concordance Modal */}
+      {activeStrongsId && (
+        <StrongsConcordancePopup
+          strongsId={activeStrongsId}
+          onClose={() => setActiveStrongsId(null)}
           onInsertIntoNote={handleInsertReferenceText}
         />
       )}

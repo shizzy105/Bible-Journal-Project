@@ -335,96 +335,96 @@ export default function App() {
 
   return (
     <DeviceFrame darkMode={effectiveDarkMode}>
-      {activeScreen === 'home' && (
-        <HomeScreen
-          entries={entries}
-          onSelectEntry={handleSelectEntry}
-          onCreateNewEntry={() => handleCreateNewEntry()}
-          onOpenCalendar={() => navigateToScreen('calendar')}
-          onOpenSearch={() => {
-            setShowSearch(true);
-            try {
-              window.history.pushState({ modal: 'search' }, '');
-            } catch {}
-          }}
-          onOpenSettings={() => navigateToScreen('settings')}
-          onDeleteEntry={handleDeleteEntry}
-          darkMode={effectiveDarkMode}
-          onToggleDarkMode={handleToggleDarkMode}
-        />
-      )}
+        {activeScreen === 'home' && (
+          <HomeScreen
+            entries={entries}
+            onSelectEntry={handleSelectEntry}
+            onCreateNewEntry={() => handleCreateNewEntry()}
+            onOpenCalendar={() => navigateToScreen('calendar')}
+            onOpenSearch={() => {
+              setShowSearch(true);
+              try {
+                window.history.pushState({ modal: 'search' }, '');
+              } catch {}
+            }}
+            onOpenSettings={() => navigateToScreen('settings')}
+            onDeleteEntry={handleDeleteEntry}
+            darkMode={effectiveDarkMode}
+            onToggleDarkMode={handleToggleDarkMode}
+          />
+        )}
 
-      {activeScreen === 'editor' && selectedEntry && (
-        <NoteEditorScreen
-          entry={selectedEntry}
-          onSave={handleSaveEntry}
-          onDelete={handleDeleteEntry}
-          onBack={navigateBack}
-          darkMode={effectiveDarkMode}
-        />
-      )}
+        {activeScreen === 'editor' && selectedEntry && (
+          <NoteEditorScreen
+            entry={selectedEntry}
+            onSave={handleSaveEntry}
+            onDelete={handleDeleteEntry}
+            onBack={navigateBack}
+            darkMode={effectiveDarkMode}
+          />
+        )}
 
-      {activeScreen === 'calendar' && (
-        <CalendarScreen
-          entries={entries}
-          onSelectEntry={handleSelectEntry}
-          onCreateEntryForDate={(dateStr) => handleCreateNewEntry(dateStr)}
-          onBack={navigateBack}
-          darkMode={effectiveDarkMode}
-        />
-      )}
+        {activeScreen === 'calendar' && (
+          <CalendarScreen
+            entries={entries}
+            onSelectEntry={handleSelectEntry}
+            onCreateEntryForDate={(dateStr) => handleCreateNewEntry(dateStr)}
+            onBack={navigateBack}
+            darkMode={effectiveDarkMode}
+          />
+        )}
 
-      {activeScreen === 'settings' && (
-        <SettingsScreen
-          onBack={navigateBack}
-          currentTheme={currentTheme}
-          onChangeTheme={handleChangeTheme}
-          currentFont={currentFont}
-          onChangeFont={handleChangeFont}
-          onOpenRecentlyDeleted={() => navigateToScreen('recently-deleted')}
-          onNotesImported={handleNotesImported}
-          onOpenAndroidCode={() => {
-            setShowAndroidCode(true);
-            try {
-              window.history.pushState({ modal: 'android_export' }, '');
-            } catch {}
-          }}
-        />
-      )}
+        {activeScreen === 'settings' && (
+          <SettingsScreen
+            onBack={navigateBack}
+            currentTheme={currentTheme}
+            onChangeTheme={handleChangeTheme}
+            currentFont={currentFont}
+            onChangeFont={handleChangeFont}
+            onOpenRecentlyDeleted={() => navigateToScreen('recently-deleted')}
+            onNotesImported={handleNotesImported}
+            onOpenAndroidCode={() => {
+              setShowAndroidCode(true);
+              try {
+                window.history.pushState({ modal: 'android_export' }, '');
+              } catch {}
+            }}
+          />
+        )}
 
-      {activeScreen === 'recently-deleted' && (
-        <RecentlyDeletedScreen
-          onBack={navigateBack}
-          onRestoreEntry={handleRestoreFromTrash}
-          darkMode={effectiveDarkMode}
-        />
-      )}
+        {activeScreen === 'recently-deleted' && (
+          <RecentlyDeletedScreen
+            onBack={navigateBack}
+            onRestoreEntry={handleRestoreFromTrash}
+            darkMode={effectiveDarkMode}
+          />
+        )}
 
-      {/* Modals */}
-      {showSearch && (
-        <SearchOverlay
-          entries={entries}
-          onClose={() => {
-            setShowSearch(false);
-          }}
-          onSelectEntry={handleSelectEntry}
-          darkMode={effectiveDarkMode}
-        />
-      )}
+        {/* Modals */}
+        {showSearch && (
+          <SearchOverlay
+            entries={entries}
+            onClose={() => {
+              setShowSearch(false);
+            }}
+            onSelectEntry={handleSelectEntry}
+            darkMode={effectiveDarkMode}
+          />
+        )}
 
-      {showAndroidCode && (
-        <AndroidCodeExportModal onClose={() => setShowAndroidCode(false)} />
-      )}
+        {showAndroidCode && (
+          <AndroidCodeExportModal onClose={() => setShowAndroidCode(false)} />
+        )}
 
-      {/* Android Toast for "Press back again to exit" */}
-      {showExitToast && (
-        <div className="fixed bottom-12 left-1/2 -translate-x-1/2 z-50 pointer-events-none animate-in fade-in slide-in-from-bottom-3 duration-200">
-          <div className="px-4 py-2 rounded-full bg-stone-900/90 dark:bg-stone-800/95 text-white text-xs font-semibold shadow-xl backdrop-blur-sm border border-stone-700/50 flex items-center gap-2">
-            <span>Press back again to exit</span>
+        {/* Android Toast for "Press back again to exit" */}
+        {showExitToast && (
+          <div className="fixed bottom-12 left-1/2 -translate-x-1/2 z-50 pointer-events-none animate-in fade-in slide-in-from-bottom-3 duration-200">
+            <div className="px-4 py-2 rounded-full bg-stone-900/90 dark:bg-stone-800/95 text-white text-xs font-semibold shadow-xl backdrop-blur-sm border border-stone-700/50 flex items-center gap-2">
+              <span>Press back again to exit</span>
+            </div>
           </div>
-        </div>
-      )}
-    </DeviceFrame>
+        )}
+      </DeviceFrame>
   );
 }
 
