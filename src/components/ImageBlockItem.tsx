@@ -25,7 +25,7 @@ export const ImageBlockItem: React.FC<ImageBlockItemProps> = ({
     <div
       className={`relative group my-3 flex flex-col items-center rounded-3xl border transition-all duration-200 overflow-hidden ${
         darkMode
-          ? 'bg-slate-900/90 border-slate-800 shadow-md'
+          ? 'bg-neutral-900/90 border-neutral-800 shadow-md'
           : 'bg-stone-50 border-stone-200 shadow-xs'
       }`}
     >

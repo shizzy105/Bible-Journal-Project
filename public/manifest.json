@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Bible Journal",
-  "short_name": "BibleJournal",
+  "name": "Asor Notes",
+  "short_name": "AsorNotes",
   "description": "Redmi Notes inspired Bible journaling app with automatic verse detection, Strong's concordance, calendar view, voice notes, and drawings.",
   "start_url": "/",
   "scope": "/",

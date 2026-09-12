@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Asor Notes</string>
+    <string name="title_activity_main">Asor Notes</string>
+    <string name="package_name">com.asornotes.app</string>
+    <string name="custom_url_scheme">com.asornotes.app</string>
+</resources>

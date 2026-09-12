@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Plus, ArrowLeft, ChevronDown, Check } from 'lucide-react';
 import { JournalEntry } from '../types/journal';
 import { getJournalEntryTextSnippet, formatDateDDMMYYYY } from '../utils/bibleParser';
+import { AppTheme } from '../services/storage';
 
 interface CalendarScreenProps {
   entries: JournalEntry[];
@@ -9,6 +10,7 @@ interface CalendarScreenProps {
   onCreateEntryForDate: (dateString: string) => void;
   onBack: () => void;
   darkMode: boolean;
+  currentTheme?: AppTheme;
 }
 
 const MONTH_NAMES = [
@@ -40,7 +42,95 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
   onCreateEntryForDate,
   onBack,
   darkMode,
+  currentTheme,
 }) => {
+  const isPureBlack =
+    currentTheme === 'black' ||
+    (typeof document !== 'undefined' && document.documentElement.classList.contains('pure-black'));
+  const isNavy =
+    currentTheme === 'navy' ||
+    (typeof document !== 'undefined' && document.documentElement.classList.contains('navy'));
+
+  const bgClass = isPureBlack
+    ? 'bg-black text-white'
+    : isNavy
+    ? 'bg-[#0b132b] text-[#e0e1dd]'
+    : darkMode
+    ? 'bg-neutral-950 text-neutral-100'
+    : 'bg-stone-50 text-stone-900';
+
+  const navBarClass = isPureBlack
+    ? 'bg-black/95 border-neutral-900'
+    : isNavy
+    ? 'bg-[#1c2541]/90 border-[#3a506b]'
+    : darkMode
+    ? 'bg-neutral-900/90 border-neutral-800'
+    : 'bg-white/90 border-stone-200';
+
+  const cardClass = isPureBlack
+    ? 'bg-neutral-950 border-neutral-900'
+    : isNavy
+    ? 'bg-[#1c2541]/80 border-[#3a506b]'
+    : darkMode
+    ? 'bg-neutral-900 border-neutral-800'
+    : 'bg-white border-stone-200';
+
+  const innerCardClass = isPureBlack
+    ? 'bg-black border-neutral-900'
+    : isNavy
+    ? 'bg-[#0b132b] border-[#3a506b]'
+    : darkMode
+    ? 'bg-neutral-950 border-neutral-800'
+    : 'bg-stone-100 border-stone-300';
+
+  const selectBgClass = isPureBlack
+    ? 'bg-neutral-900 border-neutral-800 text-white'
+    : isNavy
+    ? 'bg-[#1c2541] border-[#3a506b] text-[#e0e1dd]'
+    : darkMode
+    ? 'bg-neutral-800 border-neutral-700 text-white'
+    : 'bg-white border-stone-300 text-stone-900';
+
+  const monthBtnInactiveClass = isPureBlack
+    ? 'bg-neutral-900 hover:bg-neutral-800 text-neutral-300'
+    : isNavy
+    ? 'bg-[#1c2541] hover:bg-[#232f55] text-stone-300'
+    : darkMode
+    ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300'
+    : 'bg-white hover:bg-stone-200 text-stone-700 border border-stone-200';
+
+  const dayHoverClass = isPureBlack
+    ? 'hover:bg-neutral-900'
+    : isNavy
+    ? 'hover:bg-[#1c2541]'
+    : darkMode
+    ? 'hover:bg-neutral-800'
+    : 'hover:bg-stone-200';
+
+  const entryCardClass = isPureBlack
+    ? 'bg-neutral-950 border-neutral-900 hover:border-red-500'
+    : isNavy
+    ? 'bg-[#1c2541]/80 border-[#3a506b] hover:border-red-500'
+    : darkMode
+    ? 'bg-neutral-900 border-neutral-800 hover:border-red-500'
+    : 'bg-white border-stone-200 hover:border-red-400 shadow-xs';
+
+  const emptyBorderClass = isPureBlack
+    ? 'border-neutral-900 text-neutral-500'
+    : isNavy
+    ? 'border-[#3a506b] text-neutral-500'
+    : darkMode
+    ? 'border-neutral-800 text-neutral-500'
+    : 'border-stone-300 text-stone-400';
+
+  const navIconHoverClass = isPureBlack
+    ? 'hover:bg-neutral-900'
+    : isNavy
+    ? 'hover:bg-[#1c2541]'
+    : darkMode
+    ? 'hover:bg-neutral-800'
+    : 'hover:bg-stone-200';
+
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [selectedDateStr, setSelectedDateStr] = useState<string>(
     new Date().toISOString().split('T')[0]
@@ -89,12 +179,10 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
   const selectedDateEntries = entriesByDate.get(selectedDateStr) || [];
 
   return (
-    <div className={`flex flex-col min-h-full ${darkMode ? 'bg-slate-900 text-white' : 'bg-stone-50 text-stone-900'}`}>
+    <div className={`flex flex-col min-h-full ${bgClass}`}>
       {/* Top Bar */}
       <div
-        className={`px-4 py-3.5 border-b flex items-center justify-between sticky top-0 z-20 ${
-          darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-stone-200'
-        } backdrop-blur-md`}
+        className={`px-4 py-3.5 border-b flex items-center justify-between sticky top-0 z-20 ${navBarClass} backdrop-blur-md`}
       >
         <button
           onClick={onBack}
@@ -120,11 +208,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
 
       <div className="p-4 max-w-2xl mx-auto w-full space-y-6">
         {/* Month Navigation & Year Selector Card */}
-        <div
-          className={`p-4 rounded-3xl border shadow-sm ${
-            darkMode ? 'bg-slate-800/60 border-slate-700/60' : 'bg-white border-stone-200'
-          }`}
-        >
+        <div className={`p-4 rounded-3xl border shadow-sm ${cardClass}`}>
           {/* Header with quick Month & Year Dropdown / Trigger */}
           <div className="flex items-center justify-between mb-4 px-2">
             <button
@@ -146,14 +230,14 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
             <div className="flex items-center gap-1">
               <button
                 onClick={handlePrevMonth}
-                className="p-2 rounded-full hover:bg-stone-200 dark:hover:bg-slate-700 transition-colors"
+                className={`p-2 rounded-full transition-colors ${navIconHoverClass}`}
                 title="Previous month"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
               <button
                 onClick={handleNextMonth}
-                className="p-2 rounded-full hover:bg-stone-200 dark:hover:bg-slate-700 transition-colors"
+                className={`p-2 rounded-full transition-colors ${navIconHoverClass}`}
                 title="Next month"
               >
                 <ChevronRight className="w-5 h-5" />
@@ -163,11 +247,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
 
           {/* Expanded Year & Month Selector Scroller / Dropdown */}
           {showYearMonthPicker && (
-            <div
-              className={`mb-4 p-4 rounded-2xl border animate-fadeIn ${
-                darkMode ? 'bg-slate-900 border-slate-700' : 'bg-stone-100 border-stone-300'
-              }`}
-            >
+            <div className={`mb-4 p-4 rounded-2xl border animate-fadeIn ${innerCardClass}`}>
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-bold text-stone-400 uppercase tracking-wider">
                   Select Year & Month
@@ -187,11 +267,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
                   <select
                     value={year}
                     onChange={(e) => handleYearChange(parseInt(e.target.value, 10))}
-                    className={`w-full p-2.5 rounded-xl font-bold text-sm border focus:outline-none focus:ring-2 focus:ring-red-500 ${
-                      darkMode
-                        ? 'bg-slate-800 border-slate-700 text-white'
-                        : 'bg-white border-stone-300 text-stone-900'
-                    }`}
+                    className={`w-full p-2.5 rounded-xl font-bold text-sm border focus:outline-none focus:ring-2 focus:ring-red-500 ${selectBgClass}`}
                   >
                     {selectableYears.map((y) => (
                       <option key={y} value={y}>
@@ -233,9 +309,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
                         className={`py-1.5 px-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1 ${
                           isSelectedMonth
                             ? 'bg-red-600 text-white shadow-sm font-bold'
-                            : darkMode
-                            ? 'bg-slate-800 hover:bg-slate-700 text-stone-300'
-                            : 'bg-white hover:bg-stone-200 text-stone-700 border border-stone-200'
+                            : monthBtnInactiveClass
                         }`}
                       >
                         <span>{mName.slice(0, 3)}</span>
@@ -285,7 +359,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
                       ? 'bg-red-600 text-white shadow-md font-bold scale-105 z-10'
                       : isToday
                       ? 'border-2 border-red-500 font-bold text-red-500'
-                      : 'hover:bg-stone-200 dark:hover:bg-slate-700'
+                      : dayHoverClass
                   }`}
                 >
                   <span className="text-sm">{dayNum}</span>
@@ -322,9 +396,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
 
           {selectedDateEntries.length === 0 ? (
             <div
-              className={`p-6 text-center rounded-2xl border border-dashed ${
-                darkMode ? 'border-slate-800 text-stone-500' : 'border-stone-300 text-stone-400'
-              }`}
+              className={`p-6 text-center rounded-2xl border border-dashed ${emptyBorderClass}`}
             >
               <p className="text-xs font-medium">No journal entries recorded for this date.</p>
               <button
@@ -339,11 +411,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
               <div
                 key={entry.id}
                 onClick={() => onSelectEntry(entry)}
-                className={`p-4 rounded-2xl border transition-all cursor-pointer ${
-                  darkMode
-                    ? 'bg-slate-800/80 border-slate-700 hover:border-red-500'
-                    : 'bg-white border-stone-200 hover:border-red-400 shadow-xs'
-                }`}
+                className={`p-4 rounded-2xl border transition-all cursor-pointer ${entryCardClass}`}
               >
                 <h5 className="font-bold text-base line-clamp-1">{entry.title || 'Untitled Entry'}</h5>
                 <p className="text-xs text-stone-400 line-clamp-2 mt-1 leading-relaxed">

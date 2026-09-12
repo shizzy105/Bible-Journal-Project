@@ -35,18 +35,18 @@ export default function App() {
   const effectiveDarkMode =
     currentTheme === 'system'
       ? systemIsDark
-      : currentTheme === 'dark' || currentTheme === 'navy';
+      : currentTheme === 'dark' || currentTheme === 'black' || currentTheme === 'navy';
 
   const applyThemeToDom = (theme: AppTheme, isSysDark: boolean) => {
-    document.documentElement.classList.remove('dark', 'sepia', 'navy');
+    document.documentElement.classList.remove('dark', 'sepia', 'navy', 'pure-black');
     if (theme === 'system') {
       if (isSysDark) {
         document.documentElement.classList.add('dark');
       }
     } else if (theme === 'dark') {
       document.documentElement.classList.add('dark');
-    } else if (theme === 'sepia') {
-      document.documentElement.classList.add('sepia');
+    } else if (theme === 'black') {
+      document.documentElement.classList.add('dark', 'pure-black');
     } else if (theme === 'navy') {
       document.documentElement.classList.add('dark', 'navy');
     }
@@ -334,7 +334,7 @@ export default function App() {
   };
 
   return (
-    <DeviceFrame darkMode={effectiveDarkMode}>
+    <DeviceFrame darkMode={effectiveDarkMode} theme={currentTheme}>
         {activeScreen === 'home' && (
           <HomeScreen
             entries={entries}
@@ -351,6 +351,7 @@ export default function App() {
             onDeleteEntry={handleDeleteEntry}
             darkMode={effectiveDarkMode}
             onToggleDarkMode={handleToggleDarkMode}
+            currentTheme={currentTheme}
           />
         )}
 
@@ -361,6 +362,7 @@ export default function App() {
             onDelete={handleDeleteEntry}
             onBack={navigateBack}
             darkMode={effectiveDarkMode}
+            currentTheme={currentTheme}
           />
         )}
 
@@ -371,6 +373,7 @@ export default function App() {
             onCreateEntryForDate={(dateStr) => handleCreateNewEntry(dateStr)}
             onBack={navigateBack}
             darkMode={effectiveDarkMode}
+            currentTheme={currentTheme}
           />
         )}
 
@@ -397,6 +400,7 @@ export default function App() {
             onBack={navigateBack}
             onRestoreEntry={handleRestoreFromTrash}
             darkMode={effectiveDarkMode}
+            currentTheme={currentTheme}
           />
         )}
 
@@ -409,6 +413,7 @@ export default function App() {
             }}
             onSelectEntry={handleSelectEntry}
             darkMode={effectiveDarkMode}
+            currentTheme={currentTheme}
           />
         )}
 

@@ -8,7 +8,7 @@ import {
   Download,
   CheckCircle2,
   Trash2,
-  Mic,
+  Mail,
   Globe,
   Sparkles,
   RefreshCw,
@@ -157,8 +157,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [refFormat, setRefFormat] = useState<RefFormat>('long');
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<number>(0);
-  const [micTesting, setMicTesting] = useState<boolean>(false);
-  const [micStatus, setMicStatus] = useState<string>('');
   const [cacheClearedMsg, setCacheClearedMsg] = useState<boolean>(false);
   const [deletedCount, setDeletedCount] = useState<number>(0);
 
@@ -192,7 +190,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     translations: false,
     backup: false,
     trash: false,
-    voice: false,
   });
 
   const toggleSection = (sectionKey: string) => {
@@ -289,25 +286,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         setDownloadProgress(0);
       }, 600);
     }, 1400);
-  };
-
-  const handleTestMic = async () => {
-    setMicTesting(true);
-    setMicStatus('Testing microphone permissions and input hardware...');
-
-    try {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach((t) => t.stop());
-        setMicStatus('Microphone is connected and working perfectly!');
-      } else {
-        setMicStatus('Microphone API ready for audio voice notes.');
-      }
-    } catch (err: any) {
-      setMicStatus(`Audio Notice: ${err.message || 'Microphone permission required.'}`);
-    } finally {
-      setMicTesting(false);
-    }
   };
 
   const handleClearCache = () => {
@@ -528,8 +506,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         return 'Light Mode';
       case 'dark':
         return 'Dark Obsidian';
-      case 'sepia':
-        return 'Warm Sepia';
+      case 'black':
+        return 'Pitch Black (OLED)';
       case 'navy':
         return 'Scripture Navy';
       default:
@@ -543,34 +521,50 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     return found ? found.name : 'Original Default';
   };
 
+  const isPureBlack = currentTheme === 'black';
+  const isNavy = currentTheme === 'navy';
+  const isNeutralDark = currentTheme === 'dark';
+
+  const bgClass = isPureBlack
+    ? 'bg-black text-neutral-100'
+    : isNavy
+    ? 'bg-[#0b132b] text-[#e0e1dd]'
+    : isNeutralDark
+    ? 'bg-neutral-950 text-neutral-100'
+    : 'bg-stone-100 text-stone-900';
+
+  const headerClass = isPureBlack
+    ? 'bg-black/95 border-neutral-900'
+    : isNavy
+    ? 'bg-[#1c2541]/90 border-[#3a506b]'
+    : isNeutralDark
+    ? 'bg-neutral-900/90 border-neutral-800'
+    : 'bg-white/90 border-stone-200 shadow-2xs';
+
+  const cardClass = isPureBlack
+    ? 'bg-neutral-950 border-neutral-900'
+    : isNavy
+    ? 'bg-[#1c2541]/80 border-[#3a506b]'
+    : isNeutralDark
+    ? 'bg-neutral-900/80 border-neutral-800'
+    : 'bg-white border-stone-200';
+
+  const countBadgeClass = isPureBlack
+    ? 'bg-neutral-900 text-neutral-300'
+    : isNavy
+    ? 'bg-[#1c2541] text-[#e0e1dd]'
+    : isNeutralDark
+    ? 'bg-neutral-800 text-neutral-300'
+    : 'bg-stone-200/60 text-stone-700';
+
   return (
-    <div
-      className={`flex flex-col min-h-full transition-colors ${
-        currentTheme === 'dark'
-          ? 'bg-slate-950 text-slate-100'
-          : currentTheme === 'sepia'
-          ? 'bg-[#fbf7ee] text-[#432818]'
-          : currentTheme === 'navy'
-          ? 'bg-[#0b132b] text-[#e0e1dd]'
-          : 'bg-stone-100 text-stone-900'
-      }`}
-    >
+    <div className={`flex flex-col min-h-full transition-colors ${bgClass}`}>
       {/* Header */}
-      <div
-        className={`px-5 py-4 border-b flex items-center justify-between sticky top-0 z-20 backdrop-blur-md ${
-          currentTheme === 'dark'
-            ? 'bg-slate-900/90 border-slate-800'
-            : currentTheme === 'sepia'
-            ? 'bg-[#f4ecd8]/90 border-[#e6ccb2]'
-            : currentTheme === 'navy'
-            ? 'bg-[#1c2541]/90 border-[#3a506b]'
-            : 'bg-white/90 border-stone-200 shadow-2xs'
-        }`}
-      >
+      <div className={`px-5 py-4 border-b flex items-center justify-between sticky top-0 z-20 backdrop-blur-md ${headerClass}`}>
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="p-2 rounded-2xl hover:bg-stone-200 dark:hover:bg-slate-800 transition-colors"
+            className="p-2 rounded-2xl hover:bg-stone-200 dark:hover:bg-neutral-800 transition-colors"
             title="Back to Home"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -585,17 +579,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       {/* Main Settings Accordion List */}
       <div className="flex-1 p-4 sm:p-6 max-w-xl mx-auto w-full space-y-3.5 pb-24">
         {/* SUBGROUP 1: THEME & VISUAL STYLE */}
-        <div
-          className={`rounded-3xl border transition-all overflow-hidden shadow-xs ${
-            currentTheme === 'dark'
-              ? 'bg-slate-900/80 border-slate-800'
-              : currentTheme === 'sepia'
-              ? 'bg-[#f5ebe0]/80 border-[#e6ccb2]'
-              : currentTheme === 'navy'
-              ? 'bg-[#1c2541]/80 border-[#3a506b]'
-              : 'bg-white border-stone-200'
-          }`}
-        >
+        <div className={`rounded-3xl border transition-all overflow-hidden shadow-xs ${cardClass}`}>
           {/* Header Bar */}
           <button
             type="button"
@@ -615,12 +599,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             </div>
 
             <div className="flex items-center gap-2 shrink-0 ml-2">
-              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-stone-200/60 dark:bg-slate-800 text-stone-700 dark:text-stone-300">
+              <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${countBadgeClass}`}>
                 {getThemeSummary()}
               </span>
               <div
                 className={`p-1.5 rounded-xl transition-transform duration-200 ${
-                  openSections.theme ? 'rotate-180 bg-stone-200/50 dark:bg-slate-800' : ''
+                  openSections.theme ? 'rotate-180 bg-stone-200/50 dark:bg-neutral-800' : ''
                 }`}
               >
                 <ChevronDown className="w-4 h-4 opacity-70" />
@@ -630,7 +614,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
           {/* Roll Down Content */}
           {openSections.theme && (
-            <div className="px-4 sm:px-5 pb-5 pt-1 border-t border-stone-200/60 dark:border-slate-800/80 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="px-4 sm:px-5 pb-5 pt-1 border-t border-stone-200/60 dark:border-neutral-800 animate-in fade-in slide-in-from-top-2 duration-200">
               <p className="text-xs opacity-70 mb-4">
                 Select your preferred visual atmosphere for reading and journal writing.
               </p>
@@ -642,7 +626,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   className={`p-3.5 rounded-2xl border-2 flex flex-col gap-2 text-left transition-all relative sm:col-span-2 ${
                     currentTheme === 'system'
                       ? 'border-red-600 bg-red-500/10 text-current ring-2 ring-red-500/20'
-                      : 'border-stone-300 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 text-current hover:border-red-400'
+                      : 'border-stone-300 dark:border-neutral-800 bg-white/70 dark:bg-neutral-900/70 text-current hover:border-red-400'
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -681,36 +665,38 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   onClick={() => onChangeTheme('dark')}
                   className={`p-3.5 rounded-2xl border-2 flex flex-col gap-2 text-left transition-all relative ${
                     currentTheme === 'dark'
-                      ? 'border-red-500 bg-slate-900 text-white ring-2 ring-red-500/20'
-                      : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700'
+                      ? 'border-red-500 bg-neutral-900 text-white ring-2 ring-red-500/20'
+                      : 'border-neutral-800 bg-neutral-900 text-neutral-300 hover:border-neutral-700'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <Moon className="w-5 h-5 text-indigo-400" />
+                    <Moon className="w-5 h-5 text-neutral-300" />
                     {currentTheme === 'dark' && <Check className="w-4 h-4 text-red-500 font-bold" />}
                   </div>
                   <div>
                     <div className="font-bold text-sm">Dark Obsidian</div>
-                    <div className="text-[11px] opacity-70">Deep slate night mode</div>
+                    <div className="text-[11px] opacity-70">Deep neutral charcoal dark mode</div>
                   </div>
                 </button>
 
-                {/* Sepia Warm Parchment */}
+                {/* Pitch Black (OLED) Theme */}
                 <button
-                  onClick={() => onChangeTheme('sepia')}
+                  onClick={() => onChangeTheme('black')}
                   className={`p-3.5 rounded-2xl border-2 flex flex-col gap-2 text-left transition-all relative ${
-                    currentTheme === 'sepia'
-                      ? 'border-amber-700 bg-[#f4ecd8] text-[#432818] ring-2 ring-amber-700/20'
-                      : 'border-[#e6ccb2] bg-[#fbf7ee] text-[#7f5539] hover:border-[#ddb892]'
+                    currentTheme === 'black'
+                      ? 'border-red-500 bg-black text-white ring-2 ring-red-500/20'
+                      : 'border-neutral-800 bg-black text-neutral-300 hover:border-neutral-700'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <BookOpen className="w-5 h-5 text-amber-700" />
-                    {currentTheme === 'sepia' && <Check className="w-4 h-4 text-amber-800 font-bold" />}
+                    <div className="w-5 h-5 rounded-full bg-black border-2 border-neutral-600 flex items-center justify-center">
+                      <div className="w-2 h-2 rounded-full bg-red-500" />
+                    </div>
+                    {currentTheme === 'black' && <Check className="w-4 h-4 text-red-500 font-bold" />}
                   </div>
                   <div>
-                    <div className="font-bold text-sm">Warm Sepia</div>
-                    <div className="text-[11px] opacity-70">Aged scripture parchment</div>
+                    <div className="font-bold text-sm">Pitch Black (OLED)</div>
+                    <div className="text-[11px] opacity-70">True #000000 pure black</div>
                   </div>
                 </button>
 
@@ -738,17 +724,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         </div>
 
         {/* SUBGROUP 2: APP FONT & TYPOGRAPHY */}
-        <div
-          className={`rounded-3xl border transition-all overflow-hidden shadow-xs ${
-            currentTheme === 'dark'
-              ? 'bg-slate-900/80 border-slate-800'
-              : currentTheme === 'sepia'
-              ? 'bg-[#f5ebe0]/80 border-[#e6ccb2]'
-              : currentTheme === 'navy'
-              ? 'bg-[#1c2541]/80 border-[#3a506b]'
-              : 'bg-white border-stone-200'
-          }`}
-        >
+        <div className={`rounded-3xl border transition-all overflow-hidden shadow-xs ${cardClass}`}>
           <button
             type="button"
             onClick={() => toggleSection('font')}
@@ -767,12 +743,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             </div>
 
             <div className="flex items-center gap-2 shrink-0 ml-2">
-              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-stone-200/60 dark:bg-slate-800 text-stone-700 dark:text-stone-300">
+              <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${countBadgeClass}`}>
                 {getFontSummary()}
               </span>
               <div
                 className={`p-1.5 rounded-xl transition-transform duration-200 ${
-                  openSections.font ? 'rotate-180 bg-stone-200/50 dark:bg-slate-800' : ''
+                  openSections.font ? 'rotate-180 bg-stone-200/50 dark:bg-neutral-800' : ''
                 }`}
               >
                 <ChevronDown className="w-4 h-4 opacity-70" />
@@ -781,7 +757,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </button>
 
           {openSections.font && (
-            <div className="px-4 sm:px-5 pb-5 pt-1 border-t border-stone-200/60 dark:border-slate-800/80 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="px-4 sm:px-5 pb-5 pt-1 border-t border-stone-200/60 dark:border-neutral-800 animate-in fade-in slide-in-from-top-2 duration-200">
               <p className="text-xs opacity-70 mb-4">
                 Select the typeface for reading scriptures and writing journal notes throughout the app.
               </p>
@@ -796,10 +772,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                       className={`p-4 rounded-2xl border-2 text-left transition-all relative flex flex-col justify-between gap-2.5 ${
                         isSelected
                           ? 'border-red-600 bg-red-500/5 ring-2 ring-red-500/20'
+                          : currentTheme === 'black'
+                          ? 'border-neutral-800 bg-neutral-950 hover:border-neutral-700 text-neutral-200'
                           : currentTheme === 'dark'
-                          ? 'border-slate-800 bg-slate-900/50 hover:border-slate-700'
-                          : currentTheme === 'sepia'
-                          ? 'border-[#e6ccb2] bg-[#fbf7ee] hover:border-[#ddb892]'
+                          ? 'border-neutral-800 bg-neutral-900/50 hover:border-neutral-700'
+                          : currentTheme === 'navy'
+                          ? 'border-[#3a506b] bg-[#1c2541]/50 hover:border-[#5bc0be]'
                           : 'border-stone-200 bg-white hover:border-stone-300'
                       }`}
                     >
@@ -816,7 +794,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                       </div>
 
                       <div
-                        className="p-2.5 rounded-xl bg-stone-100/70 dark:bg-slate-800/60 border border-stone-200/60 dark:border-slate-700/50 text-xs leading-relaxed line-clamp-2"
+                        className="p-2.5 rounded-xl bg-stone-100/70 dark:bg-neutral-800/60 border border-stone-200/60 dark:border-neutral-700/50 text-xs leading-relaxed line-clamp-2"
                         style={{ fontFamily: f.fontFamily }}
                       >
                         "{f.sample}"
@@ -834,17 +812,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         </div>
 
         {/* SUBGROUP 3: SCRIPTURE REFERENCE FORMAT */}
-        <div
-          className={`rounded-3xl border transition-all overflow-hidden shadow-xs ${
-            currentTheme === 'dark'
-              ? 'bg-slate-900/80 border-slate-800'
-              : currentTheme === 'sepia'
-              ? 'bg-[#f5ebe0]/80 border-[#e6ccb2]'
-              : currentTheme === 'navy'
-              ? 'bg-[#1c2541]/80 border-[#3a506b]'
-              : 'bg-white border-stone-200'
-          }`}
-        >
+        <div className={`rounded-3xl border transition-all overflow-hidden shadow-xs ${cardClass}`}>
           <button
             type="button"
             onClick={() => toggleSection('format')}
@@ -863,12 +831,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             </div>
 
             <div className="flex items-center gap-2 shrink-0 ml-2">
-              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-stone-200/60 dark:bg-slate-800 text-stone-700 dark:text-stone-300">
+              <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${countBadgeClass}`}>
                 {refFormat === 'long' ? 'Long (Hebrews 3 v 1)' : 'Short (Heb 3 v 1)'}
               </span>
               <div
                 className={`p-1.5 rounded-xl transition-transform duration-200 ${
-                  openSections.format ? 'rotate-180 bg-stone-200/50 dark:bg-slate-800' : ''
+                  openSections.format ? 'rotate-180 bg-stone-200/50 dark:bg-neutral-800' : ''
                 }`}
               >
                 <ChevronDown className="w-4 h-4 opacity-70" />
@@ -877,7 +845,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </button>
 
           {openSections.format && (
-            <div className="px-4 sm:px-5 pb-5 pt-1 border-t border-stone-200/60 dark:border-slate-800/80 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="px-4 sm:px-5 pb-5 pt-1 border-t border-stone-200/60 dark:border-neutral-800 animate-in fade-in slide-in-from-top-2 duration-200">
               <p className="text-xs opacity-70 mb-4">
                 Choose whether inserted scripture bubble tags appear with full book names or abbreviated across all journal notes.
               </p>
@@ -890,7 +858,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   className={`p-4 rounded-2xl border-2 text-left transition-all relative flex flex-col justify-between ${
                     refFormat === 'long'
                       ? 'border-red-600 bg-red-50/50 dark:bg-red-950/30 ring-2 ring-red-500/20'
-                      : 'border-stone-200 dark:border-slate-800 bg-stone-50/50 dark:bg-slate-900/50 hover:border-stone-300 dark:hover:border-slate-700'
+                      : 'border-stone-200 dark:border-neutral-800 bg-stone-50/50 dark:bg-neutral-900/50 hover:border-stone-300 dark:hover:border-neutral-700'
                   }`}
                 >
                   <div>
@@ -900,7 +868,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                     </div>
                     <p className="text-[11px] opacity-70 mb-3">Full book name</p>
                   </div>
-                  <div className="px-2.5 py-1.5 rounded-xl bg-red-100/90 dark:bg-red-950/80 border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 font-mono text-xs font-bold self-start">
+                  <div className="px-2.5 py-1.5 rounded-xl bg-red-100/90 dark:bg-red-950/90 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 font-mono text-xs font-bold self-start">
                     Hebrews 3 v 1
                   </div>
                 </button>
@@ -912,7 +880,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   className={`p-4 rounded-2xl border-2 text-left transition-all relative flex flex-col justify-between ${
                     refFormat === 'short'
                       ? 'border-red-600 bg-red-50/50 dark:bg-red-950/30 ring-2 ring-red-500/20'
-                      : 'border-stone-200 dark:border-slate-800 bg-stone-50/50 dark:bg-slate-900/50 hover:border-stone-300 dark:hover:border-slate-700'
+                      : 'border-stone-200 dark:border-neutral-800 bg-stone-50/50 dark:bg-neutral-900/50 hover:border-stone-300 dark:hover:border-neutral-700'
                   }`}
                 >
                   <div>
@@ -922,7 +890,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                     </div>
                     <p className="text-[11px] opacity-70 mb-3">Abbreviated book name</p>
                   </div>
-                  <div className="px-2.5 py-1.5 rounded-xl bg-red-100/90 dark:bg-red-950/80 border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 font-mono text-xs font-bold self-start">
+                  <div className="px-2.5 py-1.5 rounded-xl bg-red-100/90 dark:bg-red-950/90 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 font-mono text-xs font-bold self-start">
                     Heb 3 v 1
                   </div>
                 </button>
@@ -932,17 +900,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         </div>
 
         {/* SUBGROUP 4: BIBLE TRANSLATIONS & OFFLINE DOWNLOADS */}
-        <div
-          className={`rounded-3xl border transition-all overflow-hidden shadow-xs ${
-            currentTheme === 'dark'
-              ? 'bg-slate-900/80 border-slate-800'
-              : currentTheme === 'sepia'
-              ? 'bg-[#f5ebe0]/80 border-[#e6ccb2]'
-              : currentTheme === 'navy'
-              ? 'bg-[#1c2541]/80 border-[#3a506b]'
-              : 'bg-white border-stone-200'
-          }`}
-        >
+        <div className={`rounded-3xl border transition-all overflow-hidden shadow-xs ${cardClass}`}>
           <button
             type="button"
             onClick={() => toggleSection('translations')}
@@ -966,7 +924,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </span>
               <div
                 className={`p-1.5 rounded-xl transition-transform duration-200 ${
-                  openSections.translations ? 'rotate-180 bg-stone-200/50 dark:bg-slate-800' : ''
+                  openSections.translations ? 'rotate-180 bg-stone-200/50 dark:bg-neutral-800' : ''
                 }`}
               >
                 <ChevronDown className="w-4 h-4 opacity-70" />
@@ -975,7 +933,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </button>
 
           {openSections.translations && (
-            <div className="px-4 sm:px-5 pb-5 pt-1 border-t border-stone-200/60 dark:border-slate-800/80 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="px-4 sm:px-5 pb-5 pt-1 border-t border-stone-200/60 dark:border-neutral-800 animate-in fade-in slide-in-from-top-2 duration-200">
               <p className="text-xs opacity-70 mb-4">
                 Set default translations, enable viewer versions, and download full editions for 100% offline study.
               </p>
@@ -993,7 +951,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                       className={`p-3.5 rounded-2xl border flex flex-col gap-3 transition-all ${
                         isSelected
                           ? 'border-red-500/80 bg-red-500/5'
-                          : 'border-stone-200 dark:border-slate-800'
+                          : 'border-stone-200 dark:border-neutral-800'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -1014,7 +972,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           {!isSelected && (
                             <button
                               onClick={() => handleSelectDefaultTranslation(trans.id)}
-                              className="px-2.5 py-1.5 text-xs font-semibold rounded-xl bg-stone-200 dark:bg-slate-800 hover:bg-stone-300 transition-colors"
+                              className="px-2.5 py-1.5 text-xs font-semibold rounded-xl bg-stone-200 dark:bg-neutral-800 hover:bg-stone-300 dark:hover:bg-neutral-700 transition-colors"
                             >
                               Set Default
                             </button>
@@ -1031,7 +989,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                                 <span>{downloadProgress}%</span>
                               </div>
-                              <div className="w-full bg-stone-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                              <div className="w-full bg-stone-200 dark:bg-neutral-800 h-1.5 rounded-full overflow-hidden">
                                 <div
                                   className="bg-red-600 h-full transition-all duration-300"
                                   style={{ width: `${downloadProgress}%` }}
@@ -1051,7 +1009,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                       </div>
 
                       {/* Toggle Switch for Scripture Viewer Version Options */}
-                      <div className="pt-2.5 border-t border-stone-200/60 dark:border-slate-800/80 flex items-center justify-between">
+                      <div className="pt-2.5 border-t border-stone-200/60 dark:border-neutral-800 flex items-center justify-between">
                         <span className="text-xs font-semibold opacity-80">
                           Show in Scripture Viewer options
                         </span>
@@ -1059,7 +1017,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => handleToggleEnabledVersion(trans.id)}
                           className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                            isEnabledInViewer ? 'bg-red-600' : 'bg-stone-300 dark:bg-slate-700'
+                            isEnabledInViewer ? 'bg-red-600' : 'bg-stone-300 dark:bg-neutral-700'
                           }`}
                           role="switch"
                           aria-checked={isEnabledInViewer}
@@ -1077,7 +1035,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </div>
 
               {/* Cache Storage Summary & Clear */}
-              <div className="mt-5 pt-4 border-t border-stone-200 dark:border-slate-800 flex items-center justify-between text-xs">
+              <div className="mt-5 pt-4 border-t border-stone-200 dark:border-neutral-800 flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2 opacity-70">
                   <HardDrive className="w-4 h-4 text-stone-500" />
                   <span>Offline Cache: ~18.5 MB stored</span>
@@ -1101,17 +1059,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         </div>
 
         {/* SUBGROUP 5: BACKUP, EXPORT & IMPORT (Device Migration & Sync) */}
-        <div
-          className={`rounded-3xl border transition-all overflow-hidden shadow-xs ${
-            currentTheme === 'dark'
-              ? 'bg-slate-900/80 border-slate-800'
-              : currentTheme === 'sepia'
-              ? 'bg-[#f5ebe0]/80 border-[#e6ccb2]'
-              : currentTheme === 'navy'
-              ? 'bg-[#1c2541]/80 border-[#3a506b]'
-              : 'bg-white border-stone-200'
-          }`}
-        >
+        <div className={`rounded-3xl border transition-all overflow-hidden shadow-xs ${cardClass}`}>
           <button
             type="button"
             onClick={() => toggleSection('backup')}
@@ -1135,7 +1083,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </span>
               <div
                 className={`p-1.5 rounded-xl transition-transform duration-200 ${
-                  openSections.backup ? 'rotate-180 bg-stone-200/50 dark:bg-slate-800' : ''
+                  openSections.backup ? 'rotate-180 bg-stone-200/50 dark:bg-neutral-800' : ''
                 }`}
               >
                 <ChevronDown className="w-4 h-4 opacity-70" />
@@ -1144,19 +1092,19 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </button>
 
           {openSections.backup && (
-            <div className="px-4 sm:px-5 pb-5 pt-1 border-t border-stone-200/60 dark:border-slate-800/80 animate-in fade-in slide-in-from-top-2 duration-200 space-y-4">
+            <div className="px-4 sm:px-5 pb-5 pt-1 border-t border-stone-200/60 dark:border-neutral-800 animate-in fade-in slide-in-from-top-2 duration-200 space-y-4">
               <p className="text-xs opacity-70">
                 Back up your entire journal or migrate seamlessly when changing phones or browsers. Exports include all note blocks, scriptures, voice recordings, sketches, and preferences.
               </p>
 
               {/* Data Overview Stats Bar */}
-              <div className="p-3 rounded-2xl bg-stone-100/80 dark:bg-slate-800/60 border border-stone-200/70 dark:border-slate-700/60 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="p-3 rounded-2xl bg-stone-100/80 dark:bg-neutral-900/60 border border-stone-200/70 dark:border-neutral-800 flex flex-wrap items-center justify-between gap-2 text-xs">
                 <div className="flex items-center gap-1.5 font-semibold opacity-80">
                   <Database className="w-3.5 h-3.5 text-indigo-500" />
                   <span>On Device Storage:</span>
                 </div>
                 <div className="flex items-center gap-2 text-[11px] font-mono">
-                  <span className="px-2 py-0.5 rounded-md bg-stone-200/80 dark:bg-slate-700 font-bold">
+                  <span className="px-2 py-0.5 rounded-md bg-stone-200/80 dark:bg-neutral-800 font-bold">
                     {backupStats.totalNotes} Notes
                   </span>
                   {backupStats.totalVoice > 0 && (
@@ -1175,7 +1123,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                     </span>
                   )}
                   {deletedCount > 0 && (
-                    <span className="px-2 py-0.5 rounded-md bg-stone-200/60 dark:bg-slate-700/60 opacity-60">
+                    <span className="px-2 py-0.5 rounded-md bg-stone-200/60 dark:bg-neutral-800 opacity-60">
                       {deletedCount} Trash
                     </span>
                   )}
@@ -1183,7 +1131,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </div>
 
               {/* SECTION A: EXPORT NOTES */}
-              <div className="p-4 rounded-2xl border border-stone-200 dark:border-slate-800 bg-stone-50/50 dark:bg-slate-900/40 space-y-3">
+              <div className="p-4 rounded-2xl border border-stone-200 dark:border-neutral-800 bg-stone-50/50 dark:bg-neutral-900/40 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Archive className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
@@ -1229,7 +1177,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 </div>
 
                 {/* Additional / Fallback formats */}
-                <div className="pt-2 border-t border-stone-200/60 dark:border-slate-800/80 flex items-center gap-2">
+                <div className="pt-2 border-t border-stone-200/60 dark:border-neutral-800 flex items-center gap-2">
                   <span className="text-[11px] font-semibold opacity-60">Other formats:</span>
                   <button
                     type="button"
@@ -1268,7 +1216,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </div>
 
               {/* SECTION B: IMPORT & RESTORE NOTES */}
-              <div className="p-4 rounded-2xl border border-stone-200 dark:border-slate-800 bg-stone-50/50 dark:bg-slate-900/40 space-y-3">
+              <div className="p-4 rounded-2xl border border-stone-200 dark:border-neutral-800 bg-stone-50/50 dark:bg-neutral-900/40 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Upload className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
@@ -1276,7 +1224,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   </div>
 
                   {/* Input Mode Selector */}
-                  <div className="flex items-center p-0.5 rounded-xl bg-stone-200/80 dark:bg-slate-800 text-[11px] font-bold">
+                  <div className="flex items-center p-0.5 rounded-xl bg-stone-200/80 dark:bg-neutral-800 text-[11px] font-bold">
                     <button
                       type="button"
                       onClick={() => {
@@ -1285,7 +1233,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                       }}
                       className={`px-2.5 py-1 rounded-lg transition-all ${
                         importInputMode === 'file'
-                          ? 'bg-white dark:bg-slate-700 text-current shadow-2xs'
+                          ? 'bg-white dark:bg-neutral-700 text-current shadow-2xs'
                           : 'opacity-60 hover:opacity-100'
                       }`}
                     >
@@ -1299,7 +1247,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                       }}
                       className={`px-2.5 py-1 rounded-lg transition-all ${
                         importInputMode === 'paste'
-                          ? 'bg-white dark:bg-slate-700 text-current shadow-2xs'
+                          ? 'bg-white dark:bg-neutral-700 text-current shadow-2xs'
                           : 'opacity-60 hover:opacity-100'
                       }`}
                     >
@@ -1336,7 +1284,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                       className={`p-5 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center text-center cursor-pointer transition-all ${
                         isDraggingFile
                           ? 'border-indigo-500 bg-indigo-500/10 scale-[1.01]'
-                          : 'border-stone-300 dark:border-slate-700 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-stone-100/50 dark:hover:bg-slate-800/40'
+                          : 'border-stone-300 dark:border-neutral-700 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-stone-100/50 dark:hover:bg-neutral-805/40'
                       }`}
                     >
                       <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-500 mb-2">
@@ -1356,7 +1304,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                       onChange={(e) => handlePastedChange(e.target.value)}
                       placeholder='Paste your backup JSON content here (e.g. {"version":"2.0", "entries":[...]})'
                       rows={4}
-                      className="w-full p-3 rounded-xl border border-stone-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full p-3 rounded-xl border border-stone-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                     {pastedJson && (
                       <button
@@ -1398,25 +1346,25 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
                     {/* Inspection Details */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
-                      <div className="p-2 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-stone-200 dark:border-slate-800">
+                      <div className="p-2 rounded-xl bg-white/80 dark:bg-neutral-900/80 border border-stone-200 dark:border-neutral-800">
                         <div className="font-black text-sm text-indigo-600 dark:text-indigo-400">
                           {previewResult.stats?.notesCount || 0}
                         </div>
                         <div className="text-[10px] opacity-60">Notes Found</div>
                       </div>
-                      <div className="p-2 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-stone-200 dark:border-slate-800">
+                      <div className="p-2 rounded-xl bg-white/80 dark:bg-neutral-900/80 border border-stone-200 dark:border-neutral-800">
                         <div className="font-black text-sm text-rose-500">
                           {previewResult.stats?.voiceCount || 0}
                         </div>
                         <div className="text-[10px] opacity-60">Voice Audios</div>
                       </div>
-                      <div className="p-2 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-stone-200 dark:border-slate-800">
+                      <div className="p-2 rounded-xl bg-white/80 dark:bg-neutral-900/80 border border-stone-200 dark:border-neutral-800">
                         <div className="font-black text-sm text-amber-500">
                           {previewResult.stats?.drawingCount || 0}
                         </div>
                         <div className="text-[10px] opacity-60">Drawings</div>
                       </div>
-                      <div className="p-2 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-stone-200 dark:border-slate-800">
+                      <div className="p-2 rounded-xl bg-white/80 dark:bg-neutral-900/80 border border-stone-200 dark:border-neutral-800">
                         <div className="font-black text-sm text-emerald-500">
                           {previewResult.stats?.imageCount || 0}
                         </div>
@@ -1444,7 +1392,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           className={`p-2.5 rounded-xl border text-left flex flex-col gap-1 transition-all ${
                             importMode === 'merge'
                               ? 'border-indigo-600 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 ring-2 ring-indigo-500/20'
-                              : 'border-stone-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 opacity-70'
+                              : 'border-stone-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-900/50 opacity-70'
                           }`}
                         >
                           <div className="flex items-center justify-between">
@@ -1461,8 +1409,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           onClick={() => setImportMode('replace')}
                           className={`p-2.5 rounded-xl border text-left flex flex-col gap-1 transition-all ${
                             importMode === 'replace'
-                              ? 'border-red-600 bg-red-500/10 text-red-700 dark:text-red-300 ring-2 ring-red-500/20'
-                              : 'border-stone-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 opacity-70'
+                              ? 'border-red-600 bg-red-50/10 text-red-700 dark:text-red-300 ring-2 ring-red-500/20'
+                              : 'border-stone-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-900/50 opacity-70'
                           }`}
                         >
                           <div className="flex items-center justify-between">
@@ -1516,7 +1464,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                         type="button"
                         onClick={handleClearImport}
                         disabled={importing}
-                        className="py-2.5 px-3 rounded-xl bg-stone-200 dark:bg-slate-800 hover:bg-stone-300 dark:hover:bg-slate-700 font-bold text-xs transition-colors"
+                        className="py-2.5 px-3 rounded-xl bg-stone-200 dark:bg-neutral-800 hover:bg-stone-300 dark:hover:bg-neutral-700 font-bold text-xs transition-colors"
                       >
                         Cancel
                       </button>
@@ -1537,17 +1485,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         </div>
 
         {/* SUBGROUP 6: RECENTLY DELETED (TRASH) */}
-        <div
-          className={`rounded-3xl border transition-all overflow-hidden shadow-xs ${
-            currentTheme === 'dark'
-              ? 'bg-slate-900/80 border-slate-800'
-              : currentTheme === 'sepia'
-              ? 'bg-[#f5ebe0]/80 border-[#e6ccb2]'
-              : currentTheme === 'navy'
-              ? 'bg-[#1c2541]/80 border-[#3a506b]'
-              : 'bg-white border-stone-200'
-          }`}
-        >
+        <div className={`rounded-3xl border transition-all overflow-hidden shadow-xs ${cardClass}`}>
           <button
             type="button"
             onClick={() => toggleSection('trash')}
@@ -1571,7 +1509,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </span>
               <div
                 className={`p-1.5 rounded-xl transition-transform duration-200 ${
-                  openSections.trash ? 'rotate-180 bg-stone-200/50 dark:bg-slate-800' : ''
+                  openSections.trash ? 'rotate-180 bg-stone-200/50 dark:bg-neutral-800' : ''
                 }`}
               >
                 <ChevronDown className="w-4 h-4 opacity-70" />
@@ -1580,7 +1518,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </button>
 
           {openSections.trash && (
-            <div className="px-4 sm:px-5 pb-5 pt-1 border-t border-stone-200/60 dark:border-slate-800/80 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="px-4 sm:px-5 pb-5 pt-1 border-t border-stone-200/60 dark:border-neutral-800 animate-in fade-in slide-in-from-top-2 duration-200">
               <p className="text-xs opacity-70 mb-4">
                 Notes you delete are preserved in the trash for 30 days before permanent deletion.
               </p>
@@ -1588,8 +1526,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               <button
                 onClick={onOpenRecentlyDeleted}
                 className={`w-full p-4 rounded-2xl border flex items-center justify-between transition-all group ${
-                  currentTheme === 'dark'
-                    ? 'bg-slate-800/60 hover:bg-slate-800 border-slate-700/80'
+                  currentTheme === 'black'
+                    ? 'bg-neutral-950 hover:bg-neutral-900 border-neutral-800'
+                    : currentTheme === 'dark'
+                    ? 'bg-neutral-900 hover:bg-neutral-800 border-neutral-800'
+                    : currentTheme === 'navy'
+                    ? 'bg-[#1c2541]/80 hover:bg-[#232f55] border-[#3a506b]'
                     : 'bg-stone-50 hover:bg-stone-100 border-stone-200'
                 }`}
               >
@@ -1616,74 +1558,45 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           )}
         </div>
 
-        {/* SUBGROUP 6: VOICE & HARDWARE TEST */}
-        <div
-          className={`rounded-3xl border transition-all overflow-hidden shadow-xs ${
-            currentTheme === 'dark'
-              ? 'bg-slate-900/80 border-slate-800'
-              : currentTheme === 'sepia'
-              ? 'bg-[#f5ebe0]/80 border-[#e6ccb2]'
+        {/* SUBGROUP 7: CONTACT & SUPPORT */}
+        <a
+          id="settings-contact-panel"
+          href="mailto:asornotes@gmail.com?subject=Bible%20Journal%20Feedback"
+          className={`block rounded-3xl border transition-all overflow-hidden shadow-xs group cursor-pointer ${
+            currentTheme === 'black'
+              ? 'bg-neutral-950 hover:bg-neutral-900 border-neutral-900 hover:border-neutral-800'
+              : currentTheme === 'dark'
+              ? 'bg-neutral-900/90 hover:bg-neutral-800/90 border-neutral-800 hover:border-neutral-700'
               : currentTheme === 'navy'
-              ? 'bg-[#1c2541]/80 border-[#3a506b]'
-              : 'bg-white border-stone-200'
+              ? 'bg-[#1c2541]/80 hover:bg-[#232f55] border-[#3a506b] hover:border-[#4f6d7a]'
+              : 'bg-white hover:bg-stone-50 border-stone-200 hover:border-stone-300'
           }`}
         >
-          <button
-            type="button"
-            onClick={() => toggleSection('voice')}
-            className="w-full p-4 sm:p-5 flex items-center justify-between text-left transition-colors hover:bg-stone-500/5 focus:outline-none"
-          >
+          <div className="w-full p-4 sm:p-5 flex items-center justify-between text-left">
             <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-10 h-10 rounded-2xl bg-rose-500/10 flex items-center justify-center text-rose-500 shrink-0">
-                <Mic className="w-5 h-5" />
+              <div className="w-10 h-10 rounded-2xl bg-blue-500/10 dark:bg-blue-500/20 flex items-center justify-center text-blue-500 shrink-0 group-hover:scale-105 transition-transform">
+                <Mail className="w-5 h-5" />
               </div>
               <div className="min-w-0">
-                <h2 className="text-base font-bold tracking-tight">Voice & Microphone Status</h2>
+                <h2 className="text-base font-bold tracking-tight group-hover:text-blue-500 transition-colors">
+                  Contact & Support
+                </h2>
                 <div className="text-xs opacity-60 truncate">
-                  Hardware permission diagnostics & testing
+                  asornotes@gmail.com • Feedback, suggestions & questions
                 </div>
               </div>
             </div>
 
             <div className="flex items-center gap-2 shrink-0 ml-2">
-              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-stone-200/60 dark:bg-slate-800 text-stone-700 dark:text-stone-300">
-                Diagnostics
+              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                asornotes@gmail.com
               </span>
-              <div
-                className={`p-1.5 rounded-xl transition-transform duration-200 ${
-                  openSections.voice ? 'rotate-180 bg-stone-200/50 dark:bg-slate-800' : ''
-                }`}
-              >
-                <ChevronDown className="w-4 h-4 opacity-70" />
+              <div className="p-1.5 rounded-xl bg-stone-200/50 dark:bg-neutral-800 text-stone-600 dark:text-stone-300 group-hover:translate-x-0.5 transition-transform">
+                <ChevronRight className="w-4 h-4" />
               </div>
             </div>
-          </button>
-
-          {openSections.voice && (
-            <div className="px-4 sm:px-5 pb-5 pt-1 border-t border-stone-200/60 dark:border-slate-800/80 animate-in fade-in slide-in-from-top-2 duration-200">
-              <p className="text-xs opacity-70 mb-4">
-                Test microphone recording hardware permissions for audio journal voice notes.
-              </p>
-
-              <div className="flex flex-col gap-3">
-                <button
-                  onClick={handleTestMic}
-                  disabled={micTesting}
-                  className="w-full py-2.5 px-4 bg-stone-200 dark:bg-slate-800 hover:bg-stone-300 dark:hover:bg-slate-700 font-bold rounded-2xl text-xs flex items-center justify-center gap-2 transition-transform active:scale-95"
-                >
-                  <Mic className={`w-4 h-4 ${micTesting ? 'animate-bounce text-red-500' : ''}`} />
-                  <span>{micTesting ? 'Testing Microphone...' : 'Test Microphone Hardware'}</span>
-                </button>
-
-                {micStatus && (
-                  <div className="text-xs font-semibold p-2.5 rounded-xl bg-stone-100 dark:bg-slate-900 border border-stone-200 dark:border-slate-800 text-center">
-                    {micStatus}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
+          </div>
+        </a>
       </div>
     </div>
   );

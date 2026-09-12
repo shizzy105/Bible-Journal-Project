@@ -352,7 +352,7 @@ export function setStoredFont(font: AppFont): void {
   }
 }
 
-export type AppTheme = 'system' | 'light' | 'dark' | 'sepia' | 'navy';
+export type AppTheme = 'system' | 'light' | 'dark' | 'black' | 'navy';
 export type RefFormat = 'long' | 'short';
 
 const STORAGE_KEY_REF_FORMAT = 'bible_journal_ref_format_v1';
@@ -367,9 +367,13 @@ export function setStoredRefFormat(format: RefFormat): void {
 }
 
 export function getStoredTheme(): AppTheme {
-  const saved = localStorage.getItem(STORAGE_KEY_THEME) as AppTheme;
-  if (saved && ['system', 'light', 'dark', 'sepia', 'navy'].includes(saved)) {
-    return saved;
+  const saved = localStorage.getItem(STORAGE_KEY_THEME);
+  if (saved === 'sepia') {
+    // Seamlessly migrate legacy sepia preference to pure black
+    return 'black';
+  }
+  if (saved && ['system', 'light', 'dark', 'black', 'navy'].includes(saved)) {
+    return saved as AppTheme;
   }
   // Default to system auto
   return 'system';
@@ -598,7 +602,7 @@ export function validateBackupJson(rawInput: string | any): BackupValidationResu
 
     const structuredBackup: BackupData = {
       version,
-      app: 'BibleJournal',
+      app: 'AsorNotes',
       exportedAt,
       entries: validEntries,
       recentlyDeleted,

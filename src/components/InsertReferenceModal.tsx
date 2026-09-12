@@ -47,15 +47,19 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
       return;
     }
 
-    const sync = getStrongsEntrySync(strongsMatch.id);
+    const targetId = strongsMatch.id;
+    const sync = getStrongsEntrySync(targetId);
     if (sync) {
       setStrongsPreview(sync);
       return;
     }
 
+    // Immediately clear stale preview from previous keystrokes so stale definitions never display
+    setStrongsPreview(null);
+
     let isMounted = true;
-    fetchStrongsEntryAsync(strongsMatch.id).then((entry) => {
-      if (isMounted && entry) {
+    fetchStrongsEntryAsync(targetId).then((entry) => {
+      if (isMounted && entry && entry.id === targetId) {
         setStrongsPreview(entry);
       }
     });
@@ -63,7 +67,7 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [strongsMatch]);
+  }, [strongsMatch?.id, strongsMatch?.isValidRange]);
 
   // Filter book suggestions based on user input (disabled for Strong's queries)
   const bookSuggestions = useMemo(() => {
@@ -99,8 +103,10 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
         };
       }
 
-      const preview = strongsPreview || getStrongsEntrySync(strongsMatch.id);
-      const displayLabel = preview
+      // Check synchronous entry first; if using strongsPreview, strictly ensure preview.id === strongsMatch.id!
+      const sync = getStrongsEntrySync(strongsMatch.id);
+      const preview = sync || (strongsPreview && strongsPreview.id === strongsMatch.id ? strongsPreview : null);
+      const displayLabel = preview && preview.id === strongsMatch.id
         ? `${strongsMatch.id} — ${preview.lemma} (${preview.translit}): ${preview.strongs_def}`
         : `${strongsMatch.id} (${strongsMatch.type === 'H' ? 'Hebrew' : 'Greek'} Lexicon)`;
 
@@ -266,14 +272,14 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
       <div
         className={`relative w-full max-w-md border rounded-3xl shadow-2xl p-5 sm:p-6 transition-colors ${
           isDark
-            ? 'bg-slate-900 border-slate-800 text-slate-100'
+            ? 'bg-neutral-900 border-neutral-800 text-neutral-100'
             : 'bg-white border-stone-200 text-stone-900'
         }`}
       >
         {/* Header */}
         <div
           className={`flex items-center justify-between border-b pb-3 mb-4 ${
-            isDark ? 'border-slate-800' : 'border-stone-200'
+            isDark ? 'border-neutral-800' : 'border-stone-200'
           }`}
         >
           <div className="flex items-center gap-2.5">
@@ -284,7 +290,7 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
               <h3 className={`font-extrabold text-base ${isDark ? 'text-white' : 'text-stone-900'}`}>
                 Insert Scripture Reference
               </h3>
-              <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-stone-500'}`}>
+              <p className={`text-[11px] ${isDark ? 'text-neutral-400' : 'text-stone-500'}`}>
                 Inserts an atomic scripture/strongs link in your note
               </p>
             </div>
@@ -294,7 +300,7 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
             onClick={onClose}
             className={`p-1.5 rounded-full transition-colors ${
               isDark
-                ? 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                ? 'hover:bg-neutral-800 text-neutral-400 hover:text-white'
                 : 'hover:bg-stone-100 text-stone-400 hover:text-stone-800'
             }`}
           >
@@ -307,7 +313,7 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
           <div className="relative">
             <label
               className={`block text-xs font-bold mb-1.5 ${
-                isDark ? 'text-slate-300' : 'text-stone-700'
+                isDark ? 'text-neutral-300' : 'text-stone-700'
               }`}
             >
               Type Reference or Strong's (e.g. Matt 8 v 9, H867, G765):
@@ -315,7 +321,7 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
             <div className="relative flex items-center">
               <Search
                 className={`w-4 h-4 absolute left-3.5 pointer-events-none ${
-                  isDark ? 'text-slate-500' : 'text-stone-400'
+                  isDark ? 'text-neutral-500' : 'text-stone-400'
                 }`}
               />
               <input
@@ -334,10 +340,12 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
                 }}
                 onFocus={() => setShowBookDropdown(true)}
                 placeholder="e.g. Matt 8 v 9, H867, G765, John 3:16"
-                className={`w-full pl-10 pr-4 py-2.5 rounded-2xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-red-600 shadow-inner transition-colors ${
+                spellCheck={false}
+                autoComplete="off"
+                className={`w-full pl-10 pr-4 py-2.5 rounded-2xl font-mono text-sm outline-none transition-colors border ${
                   isDark
-                    ? 'bg-slate-950 text-white placeholder:text-slate-500 border border-slate-700'
-                    : 'bg-stone-100 text-stone-900 placeholder:text-stone-400 border border-stone-300'
+                    ? 'bg-neutral-950 text-white placeholder:text-neutral-500 border-neutral-700 focus:border-red-600'
+                    : 'bg-stone-100 text-stone-900 placeholder:text-stone-400 border-stone-300 focus:border-red-600'
                 }`}
               />
             </div>
@@ -347,13 +355,13 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
               <div
                 className={`absolute left-0 right-0 top-full mt-1 z-30 border rounded-2xl shadow-xl max-h-48 overflow-y-auto divide-y ${
                   isDark
-                    ? 'bg-slate-950 border-slate-800 divide-slate-800/80 text-slate-100'
+                    ? 'bg-neutral-950 border-neutral-800 divide-neutral-800/80 text-neutral-100'
                     : 'bg-white border-stone-200 divide-stone-100 text-stone-900'
                 }`}
               >
                 <div
                   className={`px-3 py-1.5 text-[10px] uppercase tracking-wider font-bold ${
-                    isDark ? 'text-slate-400 bg-slate-900/80' : 'text-stone-500 bg-stone-50'
+                    isDark ? 'text-neutral-400 bg-neutral-900/80' : 'text-stone-500 bg-stone-50'
                   }`}
                 >
                   Book Suggestions
@@ -370,12 +378,12 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
                     onClick={() => handleSelectBook(book.name)}
                     className={`w-full text-left px-3.5 py-2 flex items-center justify-between text-xs transition-colors ${
                       isDark
-                        ? 'hover:bg-slate-800/90 text-slate-200'
+                        ? 'hover:bg-neutral-800/90 text-neutral-200'
                         : 'hover:bg-stone-100 text-stone-800'
                     }`}
                   >
                     <span className="font-bold">{book.name}</span>
-                    <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-stone-500'}`}>
+                    <span className={`text-[11px] ${isDark ? 'text-neutral-400' : 'text-stone-500'}`}>
                       {book.testament} • {book.chaptersCount} chapters
                     </span>
                   </button>
@@ -420,13 +428,14 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
           <div>
             <span
               className={`text-[11px] font-bold block mb-1.5 ${
-                isDark ? 'text-slate-400' : 'text-stone-500'
+                isDark ? 'text-neutral-400' : 'text-stone-500'
               }`}
             >
               Quick Verified Examples:
             </span>
             <div className="flex flex-wrap gap-1.5">
               {[
+                'H799',
                 'G353',
                 'H4709',
                 'H867',
@@ -458,7 +467,7 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
                   }}
                   className={`px-2.5 py-1 rounded-xl text-xs font-mono border transition-colors ${
                     isDark
-                      ? 'bg-slate-800 hover:bg-red-950/80 hover:text-red-300 hover:border-red-800 text-slate-300 border-slate-700'
+                      ? 'bg-neutral-800 hover:bg-red-950/80 hover:text-red-300 hover:border-red-800 text-neutral-300 border-neutral-700'
                       : 'bg-stone-100 hover:bg-red-50 hover:text-red-700 hover:border-red-200 text-stone-700 border-stone-200'
                   }`}
                 >
@@ -471,7 +480,7 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
           {/* Footer Action Buttons */}
           <div
             className={`flex items-center justify-end gap-2 pt-3 border-t ${
-              isDark ? 'border-slate-800' : 'border-stone-200'
+              isDark ? 'border-neutral-800' : 'border-stone-200'
             }`}
           >
             <button
@@ -479,7 +488,7 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
               onClick={onClose}
               className={`px-4 py-2 rounded-xl text-xs font-semibold transition-colors ${
                 isDark
-                  ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                  ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border border-neutral-700'
                   : 'bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200'
               }`}
             >

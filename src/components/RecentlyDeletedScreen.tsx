@@ -19,6 +19,7 @@ import {
   restoreDeletedEntry,
   permanentlyDeleteEntry,
   emptyRecentlyDeleted,
+  AppTheme,
 } from '../services/storage';
 import { getJournalEntryTextSnippet, parseBibleReferences, formatDateDDMMYYYY } from '../utils/bibleParser';
 
@@ -26,13 +27,86 @@ interface RecentlyDeletedScreenProps {
   onBack: () => void;
   onRestoreEntry?: (entry: JournalEntry) => void;
   darkMode: boolean;
+  currentTheme?: AppTheme;
 }
 
 export const RecentlyDeletedScreen: React.FC<RecentlyDeletedScreenProps> = ({
   onBack,
   onRestoreEntry,
   darkMode,
+  currentTheme,
 }) => {
+  const isPureBlack =
+    currentTheme === 'black' ||
+    (typeof document !== 'undefined' && document.documentElement.classList.contains('pure-black'));
+  const isNavy =
+    currentTheme === 'navy' ||
+    (typeof document !== 'undefined' && document.documentElement.classList.contains('navy'));
+
+  const bgClass = isPureBlack
+    ? 'bg-black text-white'
+    : isNavy
+    ? 'bg-[#0b132b] text-[#e0e1dd]'
+    : darkMode
+    ? 'bg-neutral-950 text-neutral-100'
+    : 'bg-stone-100 text-stone-900';
+
+  const navBarClass = isPureBlack
+    ? 'bg-black/95 border-neutral-900'
+    : isNavy
+    ? 'bg-[#1c2541]/90 border-[#3a506b]'
+    : darkMode
+    ? 'bg-neutral-900/90 border-neutral-800'
+    : 'bg-white/90 border-stone-200 shadow-2xs';
+
+  const infoBannerClass = isPureBlack
+    ? 'bg-neutral-950 border-neutral-900 text-neutral-300'
+    : isNavy
+    ? 'bg-[#1c2541]/60 border-[#3a506b] text-[#e0e1dd]'
+    : darkMode
+    ? 'bg-neutral-900/60 border-neutral-800 text-neutral-300'
+    : 'bg-stone-200/60 border-stone-300/80 text-stone-700';
+
+  const cardClass = isPureBlack
+    ? 'bg-neutral-950 border-neutral-900 hover:border-neutral-800 shadow-sm'
+    : isNavy
+    ? 'bg-[#1c2541] border-[#3a506b] hover:border-[#4f6d7a] shadow-sm'
+    : darkMode
+    ? 'bg-neutral-900 border-neutral-800 hover:border-neutral-700 shadow-sm'
+    : 'bg-white border-stone-200 hover:border-stone-300 hover:shadow-md';
+
+  const modalBgClass = isPureBlack
+    ? 'bg-neutral-950 border-neutral-900 text-white'
+    : isNavy
+    ? 'bg-[#1c2541] border-[#3a506b] text-white'
+    : darkMode
+    ? 'bg-neutral-900 border-neutral-800 text-white'
+    : 'bg-white border-stone-200 text-stone-900';
+
+  const modalFooterClass = isPureBlack
+    ? 'border-neutral-900 bg-black'
+    : isNavy
+    ? 'border-[#3a506b] bg-[#0b132b]'
+    : darkMode
+    ? 'border-neutral-800 bg-neutral-950'
+    : 'border-stone-200 bg-stone-50';
+
+  const secondaryBtnClass = isPureBlack
+    ? 'bg-neutral-900 hover:bg-neutral-800 text-neutral-300'
+    : isNavy
+    ? 'bg-[#232f55] hover:bg-[#3a506b] text-[#e0e1dd]'
+    : darkMode
+    ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300'
+    : 'bg-stone-100 hover:bg-stone-200 text-stone-700';
+
+  const dividerClass = isPureBlack
+    ? 'border-neutral-900'
+    : isNavy
+    ? 'border-[#3a506b]'
+    : darkMode
+    ? 'border-neutral-800'
+    : 'border-stone-100';
+
   const [deletedList, setDeletedList] = useState<DeletedJournalEntry[]>([]);
   const [previewEntry, setPreviewEntry] = useState<JournalEntry | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -98,13 +172,11 @@ export const RecentlyDeletedScreen: React.FC<RecentlyDeletedScreenProps> = ({
 
   return (
     <div
-      className={`flex flex-col min-h-full transition-colors ${
-        darkMode ? 'bg-slate-950 text-slate-100' : 'bg-stone-100 text-stone-900'
-      }`}
+      className={`flex flex-col min-h-full transition-colors ${bgClass}`}
     >
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-stone-900/95 dark:bg-slate-800/95 text-white px-4 py-2.5 rounded-2xl shadow-xl border border-stone-700 flex items-center gap-2 text-xs font-semibold animate-fadeIn">
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-stone-900/95 dark:bg-neutral-800/95 text-white px-4 py-2.5 rounded-2xl shadow-xl border border-neutral-700 flex items-center gap-2 text-xs font-semibold animate-fadeIn">
           <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
         </div>
@@ -112,14 +184,12 @@ export const RecentlyDeletedScreen: React.FC<RecentlyDeletedScreenProps> = ({
 
       {/* Header */}
       <div
-        className={`px-5 py-4 border-b flex items-center justify-between sticky top-0 z-20 backdrop-blur-md ${
-          darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-stone-200 shadow-2xs'
-        }`}
+        className={`px-5 py-4 border-b flex items-center justify-between sticky top-0 z-20 backdrop-blur-md ${navBarClass}`}
       >
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="p-2 rounded-2xl hover:bg-stone-200 dark:hover:bg-slate-800 transition-colors"
+            className="p-2 rounded-2xl hover:bg-stone-200 dark:hover:bg-neutral-800 transition-colors"
             title="Back to Settings"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -146,11 +216,7 @@ export const RecentlyDeletedScreen: React.FC<RecentlyDeletedScreenProps> = ({
       {/* Info Banner */}
       <div className="max-w-xl mx-auto w-full px-4 sm:px-6 pt-4">
         <div
-          className={`p-3.5 rounded-2xl border flex items-start gap-2.5 text-xs ${
-            darkMode
-              ? 'bg-slate-900/60 border-slate-800 text-slate-300'
-              : 'bg-stone-200/60 border-stone-300/80 text-stone-700'
-          }`}
+          className={`p-3.5 rounded-2xl border flex items-start gap-2.5 text-xs ${infoBannerClass}`}
         >
           <Clock className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
           <div>
@@ -163,11 +229,11 @@ export const RecentlyDeletedScreen: React.FC<RecentlyDeletedScreenProps> = ({
       <div className="flex-1 p-4 sm:p-6 max-w-xl mx-auto w-full pb-20">
         {deletedList.length === 0 ? (
           <div className="text-center py-16">
-            <div className="w-16 h-16 rounded-3xl bg-stone-200/60 dark:bg-slate-800/60 flex items-center justify-center mx-auto mb-4 text-stone-400 dark:text-slate-500">
+            <div className="w-16 h-16 rounded-3xl bg-stone-200/60 dark:bg-neutral-800/60 flex items-center justify-center mx-auto mb-4 text-stone-400 dark:text-neutral-500">
               <Trash2 className="w-8 h-8 opacity-40" />
             </div>
             <h3 className="text-base font-bold mb-1">Trash is Empty</h3>
-            <p className="text-xs text-stone-400 dark:text-slate-500 max-w-xs mx-auto">
+            <p className="text-xs text-stone-400 dark:text-neutral-500 max-w-xs mx-auto">
               No notes have been deleted in the past 30 days. When you delete a note from your journal, it will appear here.
             </p>
           </div>
@@ -187,11 +253,7 @@ export const RecentlyDeletedScreen: React.FC<RecentlyDeletedScreenProps> = ({
                 <div
                   key={entry.id}
                   onClick={() => setPreviewEntry(entry)}
-                  className={`p-4 rounded-3xl border transition-all cursor-pointer group ${
-                    darkMode
-                      ? 'bg-slate-900 border-slate-800 hover:border-slate-700 shadow-sm'
-                      : 'bg-white border-stone-200 hover:border-stone-300 hover:shadow-md'
-                  }`}
+                  className={`p-4 rounded-3xl border transition-all cursor-pointer group ${cardClass}`}
                 >
                   <div className="flex items-start justify-between gap-2 mb-1.5">
                     <h3 className="font-bold text-base line-clamp-1 group-hover:text-red-500 transition-colors">
@@ -200,8 +262,8 @@ export const RecentlyDeletedScreen: React.FC<RecentlyDeletedScreenProps> = ({
                     <span
                       className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1 ${
                         daysLeft <= 5
-                          ? 'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20'
-                          : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                          ? 'bg-red-100 dark:bg-red-950/80 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50'
+                          : 'bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50'
                       }`}
                     >
                       <Clock className="w-3 h-3" />
@@ -209,11 +271,11 @@ export const RecentlyDeletedScreen: React.FC<RecentlyDeletedScreenProps> = ({
                     </span>
                   </div>
 
-                  <p className="text-xs text-stone-500 dark:text-slate-400 line-clamp-2 my-1 leading-relaxed">
+                  <p className="text-xs text-stone-500 dark:text-neutral-400 line-clamp-2 my-1 leading-relaxed">
                     {snippet || 'No text content'}
                   </p>
 
-                  <div className="flex items-center gap-2 mt-2 pt-2 border-t border-stone-100 dark:border-slate-800/80 text-[10px] text-stone-400">
+                  <div className={`flex items-center gap-2 mt-2 pt-2 border-t ${dividerClass} text-[10px] text-stone-400`}>
                     <span className="flex items-center gap-1">
                       <Calendar className="w-3 h-3 text-red-500" />
                       <span>Created: {formatDateDDMMYYYY(entry.dateString)}</span>
@@ -239,7 +301,7 @@ export const RecentlyDeletedScreen: React.FC<RecentlyDeletedScreenProps> = ({
                   </div>
 
                   {/* Actions Bar */}
-                  <div className="flex items-center justify-end gap-2 mt-3 pt-2.5 border-t border-stone-100 dark:border-slate-800">
+                  <div className={`flex items-center justify-end gap-2 mt-3 pt-2.5 border-t ${dividerClass}`}>
                     <button
                       type="button"
                       onClick={(e) => handleRestore(entry.id, e)}
@@ -255,7 +317,7 @@ export const RecentlyDeletedScreen: React.FC<RecentlyDeletedScreenProps> = ({
                         e.stopPropagation();
                         setEntryToPermanentlyDelete(entry);
                       }}
-                      className="px-3 py-1.5 rounded-xl bg-stone-200 hover:bg-stone-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-stone-600 dark:text-stone-300 font-bold text-xs flex items-center gap-1.5 transition-colors"
+                      className="px-3 py-1.5 rounded-xl bg-stone-200 hover:bg-stone-300 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-stone-600 dark:text-stone-300 font-bold text-xs flex items-center gap-1.5 transition-colors"
                       title="Permanently erase note"
                     >
                       <Trash2 className="w-3.5 h-3.5 text-red-500" />
@@ -273,11 +335,9 @@ export const RecentlyDeletedScreen: React.FC<RecentlyDeletedScreenProps> = ({
       {previewEntry && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fadeIn">
           <div
-            className={`w-full max-w-lg max-h-[85vh] rounded-3xl border flex flex-col overflow-hidden shadow-2xl ${
-              darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-stone-200 text-stone-900'
-            }`}
+            className={`w-full max-w-lg max-h-[85vh] rounded-3xl border flex flex-col overflow-hidden shadow-2xl ${modalBgClass}`}
           >
-            <div className="p-4 border-b flex items-center justify-between border-stone-200 dark:border-slate-800">
+            <div className={`p-4 border-b flex items-center justify-between ${dividerClass}`}>
               <div className="flex items-center gap-2">
                 <Eye className="w-4 h-4 text-red-500" />
                 <h3 className="font-bold text-sm">Note Preview (Read-Only)</h3>
@@ -285,7 +345,7 @@ export const RecentlyDeletedScreen: React.FC<RecentlyDeletedScreenProps> = ({
               <button
                 type="button"
                 onClick={() => setPreviewEntry(null)}
-                className="p-1 rounded-full hover:bg-stone-200 dark:hover:bg-slate-800"
+                className="p-1 rounded-full hover:bg-stone-200 dark:hover:bg-neutral-800"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -313,7 +373,7 @@ export const RecentlyDeletedScreen: React.FC<RecentlyDeletedScreenProps> = ({
                   }
                   if (block.type === 'drawing') {
                     return (
-                      <div key={block.id} className="p-2 border rounded-2xl bg-white dark:bg-slate-800">
+                      <div key={block.id} className={`p-2 border rounded-2xl bg-white dark:bg-neutral-900 ${dividerClass}`}>
                         <img
                           src={block.dataUrl}
                           alt="Sketch"
@@ -324,7 +384,7 @@ export const RecentlyDeletedScreen: React.FC<RecentlyDeletedScreenProps> = ({
                   }
                   if (block.type === 'image') {
                     return (
-                      <div key={block.id} className="p-2 border rounded-2xl bg-white dark:bg-slate-800">
+                      <div key={block.id} className={`p-2 border rounded-2xl bg-white dark:bg-neutral-900 ${dividerClass}`}>
                         <img
                           src={block.imageUrl}
                           alt="Attached Screenshot"
@@ -335,7 +395,7 @@ export const RecentlyDeletedScreen: React.FC<RecentlyDeletedScreenProps> = ({
                   }
                   if (block.type === 'voice') {
                     return (
-                      <div key={block.id} className="p-3 rounded-2xl border flex items-center gap-3 bg-stone-100 dark:bg-slate-800">
+                      <div key={block.id} className={`p-3 rounded-2xl border flex items-center gap-3 bg-stone-100 dark:bg-neutral-900 ${dividerClass}`}>
                         <Mic className="w-4 h-4 text-emerald-500" />
                         <div className="text-xs">
                           <span className="font-bold">Audio Note</span>
@@ -349,7 +409,7 @@ export const RecentlyDeletedScreen: React.FC<RecentlyDeletedScreenProps> = ({
               </div>
             </div>
 
-            <div className="p-4 border-t border-stone-200 dark:border-slate-800 flex items-center justify-between gap-3 bg-stone-50 dark:bg-slate-900/60">
+            <div className={`p-4 border-t flex items-center justify-between gap-3 ${modalFooterClass}`}>
               <button
                 type="button"
                 onClick={() => setEntryToPermanentlyDelete(previewEntry)}
@@ -376,9 +436,7 @@ export const RecentlyDeletedScreen: React.FC<RecentlyDeletedScreenProps> = ({
       {entryToPermanentlyDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
           <div
-            className={`w-full max-w-sm p-5 sm:p-6 rounded-3xl border shadow-2xl ${
-              darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-stone-200 text-stone-900'
-            }`}
+            className={`w-full max-w-sm p-5 sm:p-6 rounded-3xl border shadow-2xl ${modalBgClass}`}
           >
             <div className="w-12 h-12 rounded-2xl bg-red-500/10 text-red-500 flex items-center justify-center mb-3.5">
               <Trash2 className="w-6 h-6" />
@@ -391,7 +449,7 @@ export const RecentlyDeletedScreen: React.FC<RecentlyDeletedScreenProps> = ({
               <button
                 type="button"
                 onClick={() => setEntryToPermanentlyDelete(null)}
-                className="px-4 py-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold transition-colors"
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-colors ${secondaryBtnClass}`}
               >
                 Cancel
               </button>
@@ -412,9 +470,7 @@ export const RecentlyDeletedScreen: React.FC<RecentlyDeletedScreenProps> = ({
       {showEmptyTrashModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
           <div
-            className={`w-full max-w-sm p-5 sm:p-6 rounded-3xl border shadow-2xl ${
-              darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-stone-200 text-stone-900'
-            }`}
+            className={`w-full max-w-sm p-5 sm:p-6 rounded-3xl border shadow-2xl ${modalBgClass}`}
           >
             <div className="w-12 h-12 rounded-2xl bg-red-500/10 text-red-500 flex items-center justify-center mb-3.5">
               <Trash2 className="w-6 h-6" />
@@ -427,7 +483,7 @@ export const RecentlyDeletedScreen: React.FC<RecentlyDeletedScreenProps> = ({
               <button
                 type="button"
                 onClick={() => setShowEmptyTrashModal(false)}
-                className="px-4 py-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold transition-colors"
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-colors ${secondaryBtnClass}`}
               >
                 Cancel
               </button>

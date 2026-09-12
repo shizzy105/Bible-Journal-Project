@@ -20,6 +20,7 @@ import {
 import { AppLogoIcon } from './AppLogoIcon';
 import { JournalEntry } from '../types/journal';
 import { parseBibleReferences, getJournalEntryTextSnippet, formatDateDDMMYYYY } from '../utils/bibleParser';
+import { AppTheme } from '../services/storage';
 
 interface HomeScreenProps {
   entries: JournalEntry[];
@@ -31,6 +32,7 @@ interface HomeScreenProps {
   onDeleteEntry: (entryId: string) => void;
   darkMode: boolean;
   onToggleDarkMode: () => void;
+  currentTheme?: AppTheme;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -43,8 +45,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onDeleteEntry,
   darkMode,
   onToggleDarkMode,
+  currentTheme,
 }) => {
   const [entryToDelete, setEntryToDelete] = useState<JournalEntry | null>(null);
+
+  const isPureBlack =
+    currentTheme === 'black' ||
+    (typeof document !== 'undefined' && document.documentElement.classList.contains('pure-black'));
+  const isNavy =
+    currentTheme === 'navy' ||
+    (typeof document !== 'undefined' && document.documentElement.classList.contains('navy'));
 
   // Sort entries: Pinned entries first, then by date descending
   const sortedEntries = [...entries].sort((a, b) => {
@@ -53,17 +63,35 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
   });
 
+  const bgContainerClass = isPureBlack
+    ? 'bg-black text-white'
+    : isNavy
+    ? 'bg-[#0b132b] text-[#e0e1dd]'
+    : darkMode
+    ? 'bg-neutral-950 text-neutral-100'
+    : 'bg-stone-100 text-stone-900';
+
+  const headerClass = isPureBlack
+    ? 'bg-black/95 border-neutral-900'
+    : isNavy
+    ? 'bg-[#1c2541]/90 border-[#3a506b]'
+    : darkMode
+    ? 'bg-neutral-900/90 border-neutral-800'
+    : 'bg-white/90 border-stone-200 shadow-2xs';
+
+  const headerBtnClass = isPureBlack
+    ? 'hover:bg-neutral-900 text-stone-300'
+    : isNavy
+    ? 'hover:bg-[#253256] text-[#e0e1dd]'
+    : darkMode
+    ? 'hover:bg-neutral-800 text-neutral-300'
+    : 'hover:bg-stone-200 text-stone-600';
+
   return (
-    <div
-      className={`flex flex-col min-h-full transition-colors ${
-        darkMode ? 'bg-slate-950 text-slate-100' : 'bg-stone-100 text-stone-900'
-      }`}
-    >
+    <div className={`flex flex-col min-h-full transition-colors ${bgContainerClass}`}>
       {/* Top Bar (Redmi Notes Header Style) */}
       <div
-        className={`px-5 py-4 border-b flex items-center justify-between sticky top-0 z-20 backdrop-blur-md ${
-          darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-stone-200 shadow-2xs'
-        }`}
+        className={`px-5 py-4 border-b flex items-center justify-between sticky top-0 z-20 backdrop-blur-md ${headerClass}`}
       >
         <div className="flex items-center gap-2.5">
           <AppLogoIcon className="w-9 h-9" />
@@ -78,7 +106,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         <div className="flex items-center gap-1 sm:gap-2">
           <button
             onClick={onOpenSearch}
-            className="p-2.5 rounded-2xl hover:bg-stone-200 dark:hover:bg-slate-800 text-stone-600 dark:text-stone-300 transition-colors"
+            className={`p-2.5 rounded-2xl transition-colors ${headerBtnClass}`}
             title="Search notes"
           >
             <Search className="w-5 h-5" />
@@ -86,7 +114,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
           <button
             onClick={onOpenCalendar}
-            className="p-2.5 rounded-2xl hover:bg-stone-200 dark:hover:bg-slate-800 text-stone-600 dark:text-stone-300 transition-colors"
+            className={`p-2.5 rounded-2xl transition-colors ${headerBtnClass}`}
             title="Open Calendar"
           >
             <Calendar className="w-5 h-5" />
@@ -94,7 +122,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
           <button
             onClick={onOpenSettings}
-            className="p-2.5 rounded-2xl hover:bg-stone-200 dark:hover:bg-slate-800 text-stone-600 dark:text-stone-300 transition-colors"
+            className={`p-2.5 rounded-2xl transition-colors ${headerBtnClass}`}
             title="App Settings (Translations & Themes)"
           >
             <Settings className="w-5 h-5" />
@@ -102,10 +130,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
           <button
             onClick={onToggleDarkMode}
-            className="p-2.5 rounded-2xl hover:bg-stone-200 dark:hover:bg-slate-800 text-amber-500 transition-colors"
+            className={`p-2.5 rounded-2xl transition-colors ${
+              isPureBlack
+                ? 'hover:bg-neutral-900 text-amber-400'
+                : isNavy
+                ? 'hover:bg-[#253256] text-amber-400'
+                : darkMode
+                ? 'hover:bg-neutral-800 text-amber-400'
+                : 'hover:bg-stone-200 text-stone-700'
+            }`}
             title="Toggle Dark Mode"
           >
-            {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5 text-slate-700" />}
+            {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </button>
         </div>
       </div>
@@ -140,15 +176,35 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               }, 0));
               const totalRefs = references.length + strongsCount;
 
+              const cardClass = isPureBlack
+                ? 'bg-neutral-950 border-neutral-900 hover:border-neutral-700 hover:shadow-xl'
+                : isNavy
+                ? 'bg-[#1c2541] border-[#3a506b] hover:border-cyan-500/50 hover:shadow-xl'
+                : darkMode
+                ? 'bg-neutral-900 border-neutral-800 hover:border-red-600/80 hover:shadow-xl'
+                : 'bg-white border-stone-200/80 hover:border-red-300 hover:shadow-lg';
+
+              const cardDividerClass = isPureBlack
+                ? 'border-neutral-900'
+                : isNavy
+                ? 'border-[#3a506b]'
+                : darkMode
+                ? 'border-neutral-800/80'
+                : 'border-stone-100';
+
+              const trashBtnHover = isPureBlack
+                ? 'hover:bg-neutral-900'
+                : isNavy
+                ? 'hover:bg-[#253256]'
+                : darkMode
+                ? 'hover:bg-neutral-800'
+                : 'hover:bg-stone-200';
+
               return (
                 <div
                   key={entry.id}
                   onClick={() => onSelectEntry(entry)}
-                  className={`p-4 rounded-3xl border transition-all cursor-pointer relative flex flex-col justify-between group ${
-                    darkMode
-                      ? 'bg-slate-900 border-slate-800 hover:border-red-600/80 hover:shadow-xl'
-                      : 'bg-white border-stone-200/80 hover:border-red-300 hover:shadow-lg'
-                  }`}
+                  className={`p-4 rounded-3xl border transition-all cursor-pointer relative flex flex-col justify-between group ${cardClass}`}
                 >
                   <div>
                     {/* Entry Header */}
@@ -168,7 +224,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                           e.stopPropagation();
                           setEntryToDelete(entry);
                         }}
-                        className="p-1.5 rounded-xl text-stone-400 hover:text-red-500 hover:bg-red-500/10 dark:hover:bg-slate-800 transition-colors"
+                        className={`p-1.5 rounded-xl text-stone-400 hover:text-red-500 hover:bg-red-500/10 transition-colors ${trashBtnHover}`}
                         title="Delete note"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -191,7 +247,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   </div>
 
                   {/* Badges / Feature Tags */}
-                  <div className="flex items-center justify-between pt-2 border-t border-stone-100 dark:border-slate-800/80 text-[10px]">
+                  <div className={`flex items-center justify-between pt-2 border-t text-[10px] ${cardDividerClass}`}>
                     <div className="flex items-center gap-1.5 overflow-x-auto">
                       {totalRefs > 0 && (
                         <span className="px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-950/80 text-red-600 dark:text-red-400 font-bold border border-red-200 dark:border-red-900/40 flex items-center gap-1">
@@ -236,7 +292,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
           <div
             className={`w-full max-w-sm p-5 sm:p-6 rounded-3xl border shadow-2xl ${
-              darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-stone-200 text-stone-900'
+              isPureBlack
+                ? 'bg-neutral-950 border-neutral-900 text-white'
+                : isNavy
+                ? 'bg-[#1c2541] border-[#3a506b] text-white'
+                : darkMode
+                ? 'bg-neutral-900 border-neutral-800 text-white'
+                : 'bg-white border-stone-200 text-stone-900'
             }`}
           >
             <div className="w-12 h-12 rounded-2xl bg-red-500/10 text-red-500 flex items-center justify-center mb-3.5">
@@ -250,7 +312,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               <button
                 type="button"
                 onClick={() => setEntryToDelete(null)}
-                className="px-4 py-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold transition-colors"
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-colors ${
+                  isPureBlack
+                    ? 'bg-neutral-900 hover:bg-neutral-800 text-neutral-200'
+                    : isNavy
+                    ? 'bg-[#253256] hover:bg-[#2e3e6b] text-[#e0e1dd]'
+                    : darkMode
+                    ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200'
+                    : 'bg-stone-100 hover:bg-stone-200 text-stone-700'
+                }`}
               >
                 Cancel
               </button>

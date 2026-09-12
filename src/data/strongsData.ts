@@ -2,6 +2,30 @@ import { StrongsEntry } from '../types/journal';
 
 // Built-in synchronous seed dictionary for immediate validation & offline access
 export const PRELOADED_STRONGS: Record<string, StrongsEntry> = {
+  H799: {
+    id: 'H799',
+    language: 'Hebrew',
+    number: 799,
+    lemma: 'אֶשְׁדָּת',
+    translit: 'ʼeshdâth',
+    pron: "esh-dawth'",
+    derivation: 'from H784 (אֵשׁ) and H1881 (דָּת);',
+    strongs_def: 'a fire-law',
+    kjv_def: 'fiery law.',
+    kjv_usage: 'a fiery (1x).',
+  },
+  H79: {
+    id: 'H79',
+    language: 'Hebrew',
+    number: 79,
+    lemma: 'אָבַק',
+    translit: 'ʼâbaq',
+    pron: "aw-bak'",
+    derivation: 'a primitive root, probably to float away (as vapor), but used only as denominative from H80 (אָבָק);',
+    strongs_def: 'to bedust, i.e. grapple',
+    kjv_def: 'wrestle.',
+    kjv_usage: 'alone and there wrestled (1x), as he wrestled (1x).',
+  },
   H867: {
     id: 'H867',
     language: 'Hebrew',
@@ -154,6 +178,8 @@ const strongsCache = new Map<string, StrongsEntry>(Object.entries(PRELOADED_STRO
 // Cache for the full loaded dictionary blobs
 let hebrewDictionaryPromise: Promise<Record<string, any>> | null = null;
 let greekDictionaryPromise: Promise<Record<string, any>> | null = null;
+let hebrewDictionaryData: Record<string, any> | null = null;
+let greekDictionaryData: Record<string, any> | null = null;
 
 export const MAX_HEBREW_STRONGS = 8674;
 export const MAX_GREEK_STRONGS = 5624;
@@ -193,24 +219,71 @@ export function parseStrongsReference(query: string): {
 }
 
 /**
- * Synchronous check to return entry if present in memory
+ * Synchronous check to return entry if present in memory.
+ * Checks both the preloaded/cached map and any fully loaded in-memory dictionaries.
  */
 export function getStrongsEntrySync(id: string): StrongsEntry | null {
-  const normalized = id.toUpperCase().trim();
-  return strongsCache.get(normalized) || null;
+  const parsed = parseStrongsReference(id);
+  if (!parsed || !parsed.isValidRange) return null;
+
+  const normalized = parsed.id;
+  const cached = strongsCache.get(normalized);
+  if (cached) return cached;
+
+  if (parsed.type === 'H' && hebrewDictionaryData) {
+    const raw = hebrewDictionaryData[normalized];
+    if (raw) {
+      const entry: StrongsEntry = {
+        id: normalized,
+        language: raw.derivation?.toLowerCase().includes('aramaic') ? 'Aramaic' : 'Hebrew',
+        number: parsed.number,
+        lemma: raw.lemma || '',
+        translit: raw.xlit || raw.translit || '',
+        pron: raw.pron || '',
+        derivation: raw.derivation || '',
+        strongs_def: (raw.strongs_def || '').trim(),
+        kjv_def: (raw.kjv_def || '').trim(),
+        kjv_usage: (raw.kjv_usage || raw.kjv_def || '').trim(),
+      };
+      strongsCache.set(normalized, entry);
+      return entry;
+    }
+  } else if (parsed.type === 'G' && greekDictionaryData) {
+    const raw = greekDictionaryData[normalized];
+    if (raw) {
+      const entry: StrongsEntry = {
+        id: normalized,
+        language: 'Greek',
+        number: parsed.number,
+        lemma: raw.lemma || '',
+        translit: raw.translit || raw.xlit || '',
+        pron: raw.pron || '',
+        derivation: raw.derivation || '',
+        strongs_def: (raw.strongs_def || '').trim(),
+        kjv_def: (raw.kjv_def || '').trim(),
+        kjv_usage: (raw.kjv_usage || raw.kjv_def || '').trim(),
+      };
+      strongsCache.set(normalized, entry);
+      return entry;
+    }
+  }
+
+  return null;
 }
 
 /**
  * Loads the Hebrew dictionary JSON asynchronously with multi-tier fallback
  */
 async function loadHebrewDictionary(): Promise<Record<string, any>> {
+  if (hebrewDictionaryData) return hebrewDictionaryData;
   if (hebrewDictionaryPromise) return hebrewDictionaryPromise;
   hebrewDictionaryPromise = (async () => {
     // 1. Try bundled dynamic import via Vite
     try {
       const mod = await import('./strongs/hebrew.json');
       const data = (mod && (mod.default || mod)) as Record<string, any>;
-      if (data && (data.H1 || data.H4709 || data.H867)) {
+      if (data && (data.H1 || data.H4709 || data.H867 || data.H799)) {
+        hebrewDictionaryData = data;
         return data;
       }
     } catch {
@@ -223,7 +296,9 @@ async function loadHebrewDictionary(): Promise<Record<string, any>> {
       if (res.ok) {
         const text = await res.text();
         if (text && text.trim().startsWith('{')) {
-          return JSON.parse(text);
+          const parsed = JSON.parse(text);
+          hebrewDictionaryData = parsed;
+          return parsed;
         }
       }
     } catch {
@@ -236,7 +311,9 @@ async function loadHebrewDictionary(): Promise<Record<string, any>> {
       if (res.ok) {
         const text = await res.text();
         if (text && text.trim().startsWith('{')) {
-          return JSON.parse(text);
+          const parsed = JSON.parse(text);
+          hebrewDictionaryData = parsed;
+          return parsed;
         }
       }
     } catch {
@@ -254,6 +331,7 @@ async function loadHebrewDictionary(): Promise<Record<string, any>> {
  * Loads the Greek dictionary JSON asynchronously with multi-tier fallback
  */
 async function loadGreekDictionary(): Promise<Record<string, any>> {
+  if (greekDictionaryData) return greekDictionaryData;
   if (greekDictionaryPromise) return greekDictionaryPromise;
   greekDictionaryPromise = (async () => {
     // 1. Try bundled dynamic import via Vite
@@ -261,6 +339,7 @@ async function loadGreekDictionary(): Promise<Record<string, any>> {
       const mod = await import('./strongs/greek.json');
       const data = (mod && (mod.default || mod)) as Record<string, any>;
       if (data && (data.G1 || data.G353 || data.G765)) {
+        greekDictionaryData = data;
         return data;
       }
     } catch {
@@ -273,7 +352,9 @@ async function loadGreekDictionary(): Promise<Record<string, any>> {
       if (res.ok) {
         const text = await res.text();
         if (text && text.trim().startsWith('{')) {
-          return JSON.parse(text);
+          const parsed = JSON.parse(text);
+          greekDictionaryData = parsed;
+          return parsed;
         }
       }
     } catch {
@@ -286,7 +367,9 @@ async function loadGreekDictionary(): Promise<Record<string, any>> {
       if (res.ok) {
         const text = await res.text();
         if (text && text.trim().startsWith('{')) {
-          return JSON.parse(text);
+          const parsed = JSON.parse(text);
+          greekDictionaryData = parsed;
+          return parsed;
         }
       }
     } catch {

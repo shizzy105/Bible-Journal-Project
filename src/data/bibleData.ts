@@ -1009,4 +1009,12 @@ export const TRANSLATIONS = [
   { id: 'NKJV', name: 'New King James Version (NKJV)' },
   { id: 'ESV', name: 'English Standard Version (ESV)' },
   { id: 'WEB', name: 'World English Bible (WEB)' },
+  { id: 'NIV', name: 'New International Version (NIV)' },
+  { id: 'NLT', name: 'New Living Translation (NLT)' },
+  { id: 'ASV', name: 'American Standard Version (ASV)' },
+  { id: 'BBE', name: 'Bible in Basic English (BBE)' },
+  { id: 'CSB', name: 'Christian Standard Bible (CSB)' },
+  { id: 'NASB', name: 'New American Standard Bible (NASB)' },
+  { id: 'AMP', name: 'Amplified Bible (AMP)' },
+  { id: 'YLT', name: "Young's Literal Translation (YLT)" },
 ];

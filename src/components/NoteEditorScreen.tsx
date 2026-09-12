@@ -52,6 +52,7 @@ import { DrawingCanvasModal } from './DrawingCanvasModal';
 import { InsertReferenceModal } from './InsertReferenceModal';
 import { ImageBlockItem } from './ImageBlockItem';
 import { parseStrongsReference } from '../data/strongsData';
+import { AppTheme } from '../services/storage';
 
 // Helpers for caret character offset tracking inside contenteditable elements
 function getCaretCharacterOffsetWithin(element: HTMLElement): { start: number; end: number } {
@@ -189,6 +190,7 @@ interface NoteEditorScreenProps {
   onDelete: (entryId: string) => void;
   onBack: () => void;
   darkMode: boolean;
+  currentTheme?: AppTheme;
 }
 
 // Sub-component for clean, auto-expanding Rich Text Block with inline Scripture links & formatting support
@@ -447,7 +449,15 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
   onDelete,
   onBack,
   darkMode,
+  currentTheme,
 }) => {
+  const isPureBlack =
+    currentTheme === 'black' ||
+    (typeof document !== 'undefined' && document.documentElement.classList.contains('pure-black'));
+  const isNavy =
+    currentTheme === 'navy' ||
+    (typeof document !== 'undefined' && document.documentElement.classList.contains('navy'));
+
   const [title, setTitle] = useState<string>(entry.title);
   const [blocks, setBlocks] = useState<JournalBlock[]>(entry.blocks);
   const [dateString, setDateString] = useState<string>(entry.dateString);
@@ -1358,8 +1368,88 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
     }
   };
 
+  const editorBgClass = isPureBlack
+    ? 'bg-black text-white'
+    : isNavy
+    ? 'bg-[#0b132b] text-[#e0e1dd]'
+    : darkMode
+    ? 'bg-neutral-950 text-neutral-100'
+    : 'bg-white text-stone-900';
+
+  const editorHeaderClass = isPureBlack
+    ? 'bg-black/95 border-neutral-900'
+    : isNavy
+    ? 'bg-[#1c2541]/90 border-[#3a506b]'
+    : darkMode
+    ? 'bg-neutral-900/90 border-neutral-800'
+    : 'bg-white/90 border-stone-100';
+
+  const actionBtnClass = isPureBlack
+    ? 'hover:bg-neutral-900 text-stone-300 hover:text-white'
+    : isNavy
+    ? 'hover:bg-[#253256] text-[#e0e1dd]'
+    : darkMode
+    ? 'hover:bg-neutral-800 text-neutral-300 hover:text-white'
+    : 'hover:bg-stone-100 text-stone-500';
+
+  const datePillClass = isPureBlack
+    ? 'bg-neutral-950 text-neutral-200 border-neutral-800 hover:bg-neutral-900'
+    : isNavy
+    ? 'bg-[#1c2541] text-[#e0e1dd] border-[#3a506b] hover:bg-[#253256]'
+    : darkMode
+    ? 'bg-neutral-800 text-neutral-200 border-neutral-700 hover:bg-neutral-700'
+    : 'bg-stone-100 text-stone-700 border-stone-200/70 hover:bg-stone-200';
+
+  const dividerClass = isPureBlack
+    ? 'border-neutral-900'
+    : isNavy
+    ? 'border-[#3a506b]'
+    : darkMode
+    ? 'border-neutral-800'
+    : 'border-stone-200';
+
+  const bottomBarClass = isPureBlack
+    ? 'bg-black/95 border-neutral-900 text-neutral-100'
+    : isNavy
+    ? 'bg-[#1c2541]/95 border-[#3a506b] text-[#e0e1dd]'
+    : darkMode
+    ? 'bg-neutral-900/95 border-neutral-800 text-neutral-100'
+    : 'bg-white/95 border-stone-200 text-stone-800';
+
+  const formatToolbarClass = isPureBlack
+    ? 'bg-neutral-950 border-neutral-900 text-neutral-200'
+    : isNavy
+    ? 'bg-[#0b132b] border-[#3a506b] text-[#e0e1dd]'
+    : darkMode
+    ? 'bg-neutral-800 border-neutral-700 text-neutral-200'
+    : 'bg-stone-100 border-stone-200 text-stone-800';
+
+  const toolbarBtnClass = isPureBlack
+    ? 'bg-neutral-950 hover:bg-neutral-900 text-neutral-200 border-neutral-900'
+    : isNavy
+    ? 'bg-[#0b132b] hover:bg-[#162238] text-[#e0e1dd] border-[#3a506b]'
+    : darkMode
+    ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border-neutral-700'
+    : 'bg-stone-100 hover:bg-stone-200 text-stone-700 border-stone-200';
+
+  const modalClass = isPureBlack
+    ? 'bg-neutral-950 border-neutral-900 text-white'
+    : isNavy
+    ? 'bg-[#1c2541] border-[#3a506b] text-white'
+    : darkMode
+    ? 'bg-neutral-900 border-neutral-800 text-white'
+    : 'bg-white border-stone-200 text-stone-900';
+
+  const cancelBtnClass = isPureBlack
+    ? 'bg-neutral-900 hover:bg-neutral-800 text-neutral-200'
+    : isNavy
+    ? 'bg-[#253256] hover:bg-[#2e3e6b] text-[#e0e1dd]'
+    : darkMode
+    ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200'
+    : 'bg-stone-100 hover:bg-stone-200 text-stone-700';
+
   return (
-    <div className={`flex flex-col min-h-screen ${darkMode ? 'bg-slate-900 text-slate-100' : 'bg-white text-stone-900'}`}>
+    <div className={`flex flex-col min-h-screen ${editorBgClass}`}>
       {/* Hidden File Input for Photo Uploads */}
       <input
         type="file"
@@ -1371,15 +1461,13 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
 
       {/* Top Navigation Bar */}
       <div
-        className={`px-3 sm:px-4 py-2.5 sm:py-3 border-b flex items-center justify-between sticky top-0 z-20 ${
-          darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-stone-100'
-        } backdrop-blur-md`}
+        className={`px-3 sm:px-4 py-2.5 sm:py-3 border-b flex items-center justify-between sticky top-0 z-20 ${editorHeaderClass} backdrop-blur-md`}
       >
         {/* Left Section: Back + Date (dd/mm/yyyy) + Undo / Redo */}
         <div className="flex items-center gap-2 min-w-0">
           <button
             onClick={handleEditorBack}
-            className="p-1.5 sm:p-2 rounded-xl hover:bg-stone-100 dark:hover:bg-slate-800 text-stone-500 dark:text-stone-300 transition-colors shrink-0"
+            className={`p-1.5 sm:p-2 rounded-xl transition-colors shrink-0 ${actionBtnClass}`}
             title="Back to Journal List"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -1388,7 +1476,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
           {/* Normal Size Date Display Pill (dd/mm/yyyy) */}
           <div
             onClick={handleCalendarClick}
-            className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-100 dark:bg-slate-800 text-xs font-bold text-stone-700 dark:text-stone-200 hover:bg-stone-200 dark:hover:bg-slate-700 transition-colors cursor-pointer group shrink-0 border border-stone-200/70 dark:border-slate-700/70 shadow-2xs"
+            className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer group shrink-0 border shadow-2xs ${datePillClass}`}
             title="Change Note Date (DD/MM/YYYY)"
           >
             <Calendar className="w-4 h-4 text-red-500 shrink-0" />
@@ -1409,12 +1497,12 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
           </div>
 
           {/* Undo and Redo Controls */}
-          <div className="flex items-center gap-0.5 pl-1.5 border-l border-stone-200 dark:border-slate-800 shrink-0">
+          <div className={`flex items-center gap-0.5 pl-1.5 border-l shrink-0 ${dividerClass}`}>
             <button
               type="button"
               onClick={handleUndo}
               disabled={!canUndo}
-              className="p-1.5 rounded-xl text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:hover:bg-transparent transition-all active:scale-90"
+              className={`p-1.5 rounded-xl disabled:opacity-30 disabled:hover:bg-transparent transition-all active:scale-90 ${actionBtnClass}`}
               title="Undo (Ctrl+Z)"
               aria-label="Undo"
             >
@@ -1424,7 +1512,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
               type="button"
               onClick={handleRedo}
               disabled={!canRedo}
-              className="p-1.5 rounded-xl text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:hover:bg-transparent transition-all active:scale-90"
+              className={`p-1.5 rounded-xl disabled:opacity-30 disabled:hover:bg-transparent transition-all active:scale-90 ${actionBtnClass}`}
               title="Redo (Ctrl+Y / Ctrl+Shift+Z)"
               aria-label="Redo"
             >
@@ -1444,7 +1532,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
             className={`p-1.5 sm:p-2 rounded-xl transition-colors ${
               isPinned
                 ? 'bg-red-600 text-white'
-                : 'hover:bg-stone-100 dark:hover:bg-slate-800 text-stone-400'
+                : actionBtnClass
             }`}
             title={isPinned ? 'Unpin note' : 'Pin note to top'}
           >
@@ -1487,7 +1575,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
         {/* Sequential Mixed Content Blocks List */}
         <div className="space-y-4">
           {blocks.length === 0 && (
-            <div className="text-center py-12 border-2 border-dashed border-stone-200 dark:border-slate-800 rounded-3xl p-6">
+            <div className={`text-center py-12 border-2 border-dashed rounded-3xl p-6 ${dividerClass}`}>
               <p className="text-sm font-semibold text-stone-500">Your note entry is currently empty.</p>
               <p className="text-xs text-stone-400 mt-1 mb-4">Add text, images, voice notes, sketches, or scripture references in any order below.</p>
               <button
@@ -1507,7 +1595,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                 className="relative group transition-all"
               >
                 {/* Subtle Hover Action Bar for moving/deleting block */}
-                <div className="absolute right-2 -top-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex items-center gap-1 bg-stone-900/90 dark:bg-slate-800/90 backdrop-blur-md px-2 py-1 rounded-full text-white text-[10px] shadow-lg">
+                <div className="absolute right-2 -top-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex items-center gap-1 bg-stone-900/90 dark:bg-neutral-800/90 backdrop-blur-md px-2 py-1 rounded-full text-white text-[10px] shadow-lg">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1598,7 +1686,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
 
                 {/* 5. DRAWING BLOCK - Clean Sketch Container */}
                 {block.type === 'drawing' && (
-                  <div className="relative group my-3 flex flex-col items-center bg-white dark:bg-slate-900 border border-stone-200/80 dark:border-slate-800 rounded-3xl p-3 shadow-xs">
+                  <div className="relative group my-3 flex flex-col items-center bg-white dark:bg-neutral-900 border border-stone-200/80 dark:border-neutral-800 rounded-3xl p-3 shadow-xs">
                     <img
                       src={block.dataUrl}
                       alt="Prayer Sketch"
@@ -1625,15 +1713,13 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
 
       {/* Bottom Action Bar (Input Media & Reference Toolbar) */}
       <div
-        className={`fixed bottom-0 left-0 right-0 z-30 p-2 sm:p-3 border-t flex flex-col gap-2 ${
-          darkMode ? 'bg-slate-900/95 border-slate-800 text-slate-100' : 'bg-white/95 border-stone-200 text-stone-800'
-        } backdrop-blur-md shadow-lg max-w-2xl mx-auto rounded-t-3xl`}
+        className={`fixed bottom-0 left-0 right-0 z-30 p-2 sm:p-3 border-t flex flex-col gap-2 ${bottomBarClass} backdrop-blur-md shadow-lg max-w-2xl mx-auto rounded-t-3xl`}
       >
         {/* Rich Text Formatting Sub-Toolbar Drawer attached directly under/above the Text button */}
         {showFormatToolbar && (
-          <div className="flex items-center justify-between gap-1 p-2 bg-stone-100 dark:bg-slate-800 rounded-2xl border border-stone-200 dark:border-slate-700 backdrop-blur-md overflow-x-auto text-stone-800 dark:text-stone-200 shadow-sm animate-in fade-in duration-150">
+          <div className={`flex items-center justify-between gap-1 p-2 rounded-2xl border backdrop-blur-md overflow-x-auto shadow-sm animate-in fade-in duration-150 ${formatToolbarClass}`}>
             {/* Style Group: Bold, Italic, Underline */}
-            <div className="flex items-center gap-1 border-r border-stone-300 dark:border-slate-700 pr-2 shrink-0">
+            <div className={`flex items-center gap-1 border-r pr-2 shrink-0 ${dividerClass}`}>
               <button
                 type="button"
                 onMouseDown={(e) => {
@@ -1643,7 +1729,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                 className={`p-1.5 rounded-xl active:scale-95 transition-all ${
                   activeFormats.bold
                     ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-400 dark:ring-blue-500'
-                    : 'hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-800 dark:text-stone-100 font-bold'
+                    : 'hover:bg-stone-200 dark:hover:bg-neutral-700 text-stone-800 dark:text-neutral-100 font-bold'
                 }`}
                 title="Bold"
               >
@@ -1658,7 +1744,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                 className={`p-1.5 rounded-xl active:scale-95 transition-all ${
                   activeFormats.italic
                     ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-400 dark:ring-blue-500'
-                    : 'hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-800 dark:text-stone-100 italic'
+                    : 'hover:bg-stone-200 dark:hover:bg-neutral-700 text-stone-800 dark:text-neutral-100 italic'
                 }`}
                 title="Italic"
               >
@@ -1673,7 +1759,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                 className={`p-1.5 rounded-xl active:scale-95 transition-all ${
                   activeFormats.underline
                     ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-400 dark:ring-blue-500'
-                    : 'hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-800 dark:text-stone-100 underline'
+                    : 'hover:bg-stone-200 dark:hover:bg-neutral-700 text-stone-800 dark:text-neutral-100 underline'
                 }`}
                 title="Underline"
               >
@@ -1682,7 +1768,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
             </div>
 
             {/* Font Size Group */}
-            <div className="flex items-center gap-1 border-r border-stone-300 dark:border-slate-700 pr-2 shrink-0">
+            <div className={`flex items-center gap-1 border-r pr-2 shrink-0 ${dividerClass}`}>
               <button
                 type="button"
                 onMouseDown={(e) => {
@@ -1692,7 +1778,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                 className={`px-2 py-1 rounded-lg text-xs font-bold active:scale-95 transition-all ${
                   activeFormats.fontSize === '2'
                     ? 'bg-blue-600 text-white shadow-xs'
-                    : 'hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-700 dark:text-stone-300'
+                    : 'hover:bg-stone-200 dark:hover:bg-neutral-700 text-stone-700 dark:text-neutral-300'
                 }`}
                 title="Small font size"
               >
@@ -1707,7 +1793,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                 className={`px-2 py-1 rounded-lg text-sm font-bold active:scale-95 transition-all ${
                   activeFormats.fontSize === '3'
                     ? 'bg-blue-600 text-white shadow-xs'
-                    : 'hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-700 dark:text-stone-300'
+                    : 'hover:bg-stone-200 dark:hover:bg-neutral-700 text-stone-700 dark:text-neutral-300'
                 }`}
                 title="Medium font size (Default)"
               >
@@ -1722,7 +1808,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                 className={`px-2 py-1 rounded-lg text-base font-extrabold active:scale-95 transition-all ${
                   activeFormats.fontSize === '5'
                     ? 'bg-blue-600 text-white shadow-xs'
-                    : 'hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-800 dark:text-stone-100'
+                    : 'hover:bg-stone-200 dark:hover:bg-neutral-700 text-stone-800 dark:text-neutral-100'
                 }`}
                 title="Large font size"
               >
@@ -1737,7 +1823,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                 className={`px-2 py-1 rounded-lg text-lg font-black active:scale-95 transition-all ${
                   activeFormats.fontSize === '6'
                     ? 'bg-blue-600 text-white shadow-xs'
-                    : 'hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-900 dark:text-white'
+                    : 'hover:bg-stone-200 dark:hover:bg-neutral-700 text-stone-900 dark:text-white'
                 }`}
                 title="Extra Large font size"
               >
@@ -1746,7 +1832,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
             </div>
 
             {/* Alignment Group */}
-            <div className="flex items-center gap-1 border-r border-stone-300 dark:border-slate-700 pr-2 shrink-0">
+            <div className={`flex items-center gap-1 border-r pr-2 shrink-0 ${dividerClass}`}>
               <button
                 type="button"
                 onMouseDown={(e) => {
@@ -1756,7 +1842,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                 className={`p-1.5 rounded-xl active:scale-95 transition-all ${
                   activeFormats.align === 'left'
                     ? 'bg-blue-600 text-white shadow-xs'
-                    : 'hover:bg-stone-200 dark:hover:bg-slate-700'
+                    : 'hover:bg-stone-200 dark:hover:bg-neutral-700'
                 }`}
                 title="Align Left"
               >
@@ -1771,7 +1857,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                 className={`p-1.5 rounded-xl active:scale-95 transition-all ${
                   activeFormats.align === 'center'
                     ? 'bg-blue-600 text-white shadow-xs'
-                    : 'hover:bg-stone-200 dark:hover:bg-slate-700'
+                    : 'hover:bg-stone-200 dark:hover:bg-neutral-700'
                 }`}
                 title="Align Center"
               >
@@ -1786,7 +1872,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                 className={`p-1.5 rounded-xl active:scale-95 transition-all ${
                   activeFormats.align === 'right'
                     ? 'bg-blue-600 text-white shadow-xs'
-                    : 'hover:bg-stone-200 dark:hover:bg-slate-700'
+                    : 'hover:bg-stone-200 dark:hover:bg-neutral-700'
                 }`}
                 title="Align Right"
               >
@@ -1845,7 +1931,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                   executeFormat('removeFormat');
                   executeFormat('hiliteColor', 'transparent');
                 }}
-                className="p-1 rounded-full text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-slate-700"
+                className="p-1 rounded-full text-stone-400 hover:text-stone-700 dark:hover:text-neutral-200 hover:bg-stone-200 dark:hover:bg-neutral-700"
                 title="Remove Highlight / Clear Format"
               >
                 <X className="w-3.5 h-3.5" />
@@ -1872,7 +1958,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
             className={`flex-1 py-2 px-2.5 rounded-2xl text-xs font-bold flex items-center justify-center gap-1 border transition-all active:scale-95 ${
               showFormatToolbar || activeFormats.bold || activeFormats.italic || activeFormats.underline
                 ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                : 'bg-stone-100 dark:bg-slate-800 hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-700 dark:text-stone-200 border-stone-200 dark:border-slate-700'
+                : toolbarBtnClass
             }`}
             title="Toggle Rich Text formatting options (Bold, Italic, Underline, Size, Highlight)"
           >
@@ -1885,7 +1971,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
             type="button"
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => fileInputRef.current?.click()}
-            className="flex-1 py-2 px-2.5 rounded-2xl bg-stone-100 dark:bg-slate-800 hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-700 dark:text-stone-200 text-xs font-bold flex items-center justify-center gap-1 border border-stone-200 dark:border-slate-700 transition-transform active:scale-95"
+            className={`flex-1 py-2 px-2.5 rounded-2xl text-xs font-bold flex items-center justify-center gap-1 border transition-transform active:scale-95 ${toolbarBtnClass}`}
             title="Add photo or image from gallery"
           >
             <ImageIcon className="w-4 h-4 text-emerald-500" />
@@ -1897,7 +1983,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
             type="button"
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => setShowVoiceRecorder(true)}
-            className="flex-1 py-2 px-2.5 rounded-2xl bg-stone-100 dark:bg-slate-800 hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-700 dark:text-stone-200 text-xs font-bold flex items-center justify-center gap-1 border border-stone-200 dark:border-slate-700 transition-transform active:scale-95"
+            className={`flex-1 py-2 px-2.5 rounded-2xl text-xs font-bold flex items-center justify-center gap-1 border transition-transform active:scale-95 ${toolbarBtnClass}`}
             title="Record audio voice note"
           >
             <Mic className="w-4 h-4 text-rose-500" />
@@ -1909,7 +1995,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
             type="button"
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => setShowDrawingCanvas(true)}
-            className="flex-1 py-2 px-2.5 rounded-2xl bg-stone-100 dark:bg-slate-800 hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-700 dark:text-stone-200 text-xs font-bold flex items-center justify-center gap-1 border border-stone-200 dark:border-slate-700 transition-transform active:scale-95"
+            className={`flex-1 py-2 px-2.5 rounded-2xl text-xs font-bold flex items-center justify-center gap-1 border transition-transform active:scale-95 ${toolbarBtnClass}`}
             title="Draw prayer sketch"
           >
             <Edit3 className="w-4 h-4 text-amber-500" />
@@ -1983,9 +2069,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
           <div
-            className={`w-full max-w-sm p-5 sm:p-6 rounded-3xl border shadow-2xl ${
-              darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-stone-200 text-stone-900'
-            }`}
+            className={`w-full max-w-sm p-5 sm:p-6 rounded-3xl border shadow-2xl ${modalClass}`}
           >
             <div className="w-12 h-12 rounded-2xl bg-red-500/10 text-red-500 flex items-center justify-center mb-3.5">
               <Trash2 className="w-6 h-6" />
@@ -1998,7 +2082,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
               <button
                 type="button"
                 onClick={() => setShowDeleteModal(false)}
-                className="px-4 py-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold transition-colors"
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-colors ${cancelBtnClass}`}
               >
                 Cancel
               </button>
