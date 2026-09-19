@@ -83,7 +83,9 @@ export const BibleVersePopup: React.FC<BibleVersePopupProps> = ({ match, onClose
 
   if (!match) return null;
 
-  const referenceTitle = match.endVerse && match.endVerse !== match.startVerse
+  const referenceTitle = match.isFullChapter
+    ? `${match.bookName} ${match.chapter}`
+    : match.endVerse && match.endVerse !== match.startVerse
     ? `${match.bookName} ${match.chapter}:${match.startVerse}-${match.endVerse}`
     : `${match.bookName} ${match.chapter}:${match.startVerse}`;
 
@@ -122,7 +124,11 @@ export const BibleVersePopup: React.FC<BibleVersePopupProps> = ({ match, onClose
             </div>
             <div>
               <h3 className="text-lg font-bold text-white tracking-tight">{referenceTitle}</h3>
-              <p className="text-xs text-stone-400">Verbatim Scripture • Exact Translation</p>
+              <p className="text-xs text-stone-400">
+                {match.isFullChapter
+                  ? `Full Chapter • ${verses.length || (match.endVerse || 0)} Verses`
+                  : 'Verbatim Scripture • Exact Translation'}
+              </p>
             </div>
           </div>
           <button

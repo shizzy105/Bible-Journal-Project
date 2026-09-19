@@ -4,7 +4,7 @@ import { BIBLE_BOOKS, getMaxVersesForChapter } from '../data/bibleData';
 import { parseBibleReferences, formatRefMatch } from '../utils/bibleParser';
 import { getStoredRefFormat } from '../services/storage';
 import { parseStrongsReference, getStrongsEntrySync, fetchStrongsEntryAsync } from '../data/strongsData';
-import { StrongsEntry } from '../types/journal';
+import { StrongsEntry, BibleReferenceMatch } from '../types/journal';
 
 interface InsertReferenceModalProps {
   onClose: () => void;
@@ -122,11 +122,15 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
     const matches = parseBibleReferences(trimmed);
     if (matches.length > 0) {
       const match = matches[0];
+      const maxVerses = match.endVerse || getMaxVersesForChapter(match.bookName, match.chapter);
       return {
         isValid: true,
         isStrongs: false,
         match,
         formatted: formatRefMatch(match, getStoredRefFormat()),
+        displayName: match.isFullChapter
+          ? `${match.bookName} ${match.chapter} (Full Chapter, ${maxVerses} Verses)`
+          : undefined,
       };
     }
 
@@ -171,7 +175,7 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
     if (!bookObj) {
       return {
         isValid: false,
-        error: `Reference "${parts[0] || ''}" not recognized. Enter a valid Bible reference (e.g. Matt 8 v 9) or Strong's # (e.g. H867, G765).`,
+        error: `Reference "${parts[0] || ''}" not recognized. Enter a valid Bible reference (e.g. Matt 5 v 3-19, Daniel 5, Gen 1 v 7) or Strong's # (e.g. H799, G270).`,
       };
     }
 
@@ -202,6 +206,28 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
     }
 
     const maxVerses = getMaxVersesForChapter(bookObj.name, chapterNum);
+
+    // If only a chapter is specified (e.g. "Daniel 5", "John 3"), it's a full chapter reference!
+    if (numbers.length === 1) {
+      const match: BibleReferenceMatch = {
+        fullMatch: trimmed,
+        bookName: bookObj.name,
+        bookId: bookObj.id,
+        chapter: chapterNum,
+        startVerse: 1,
+        endVerse: maxVerses,
+        startIndex: 0,
+        endIndex: trimmed.length,
+        isFullChapter: true,
+      };
+      return {
+        isValid: true,
+        isStrongs: false,
+        match,
+        formatted: formatRefMatch(match, getStoredRefFormat()),
+        displayName: `${bookObj.name} ${chapterNum} (Full Chapter, ${maxVerses} Verses)`,
+      };
+    }
 
     if (numbers.length >= 2) {
       const verseNum = parseInt(numbers[1], 10);
@@ -245,7 +271,7 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
 
     return {
       isValid: false,
-      error: `Please specify a verse for ${bookObj.name} ${chapterNum} (e.g. "${bookObj.name} ${chapterNum} v 1").`,
+      error: `Please specify a valid reference for ${bookObj.name} (e.g. "${bookObj.name} ${chapterNum}" or "${bookObj.name} ${chapterNum} v 1").`,
     };
   }, [query]);
 
@@ -316,7 +342,7 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
                 isDark ? 'text-neutral-300' : 'text-stone-700'
               }`}
             >
-              Type Reference or Strong's (e.g. Matt 8 v 9, H867, G765):
+              Type Reference or Strong's (e.g. Matt 5 v 3-19, Daniel 5, Gen 1 v 7, H799, G270):
             </label>
             <div className="relative flex items-center">
               <Search
@@ -339,7 +365,7 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
                   }
                 }}
                 onFocus={() => setShowBookDropdown(true)}
-                placeholder="e.g. Matt 8 v 9, H867, G765, John 3:16"
+                placeholder="e.g. Matt 5 v 3-19, Daniel 5, Gen 1 v 7, H799, G270"
                 spellCheck={false}
                 autoComplete="off"
                 className={`w-full pl-10 pr-4 py-2.5 rounded-2xl font-mono text-sm outline-none transition-colors border ${
@@ -435,45 +461,51 @@ export const InsertReferenceModal: React.FC<InsertReferenceModalProps> = ({
             </span>
             <div className="flex flex-wrap gap-1.5">
               {[
+                'Matt 5 v 3-19',
+                'Daniel 5',
+                'Gen 1 v 7',
                 'H799',
-                'G353',
-                'H4709',
-                'H867',
-                'G765',
-                'Matt 8 v 9',
-                'Daniel 5 v 10',
+                'G270',
                 'John 3:16',
                 '1 Cor 13:4-8',
-                'Ps 23:1-6',
-              ].map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onTouchStart={(e) => {
-                    e.preventDefault();
+                'Ps 23',
+              ].map((preset) => {
+                const isSelected = query.trim().toLowerCase() === preset.toLowerCase();
+                const handlePresetAction = () => {
+                  if (isSelected && validationResult.isValid) {
+                    handleInsert();
+                  } else {
                     setQuery(preset);
                     setShowBookDropdown(false);
                     if (inputRef.current) {
                       inputRef.current.focus();
                     }
-                  }}
-                  onClick={() => {
-                    setQuery(preset);
-                    setShowBookDropdown(false);
-                    if (inputRef.current) {
-                      inputRef.current.focus();
-                    }
-                  }}
-                  className={`px-2.5 py-1 rounded-xl text-xs font-mono border transition-colors ${
-                    isDark
-                      ? 'bg-neutral-800 hover:bg-red-950/80 hover:text-red-300 hover:border-red-800 text-neutral-300 border-neutral-700'
-                      : 'bg-stone-100 hover:bg-red-50 hover:text-red-700 hover:border-red-200 text-stone-700 border-stone-200'
-                  }`}
-                >
-                  {preset}
-                </button>
-              ))}
+                  }
+                };
+
+                return (
+                  <button
+                    key={preset}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onTouchStart={(e) => {
+                      e.preventDefault();
+                      handlePresetAction();
+                    }}
+                    onClick={handlePresetAction}
+                    className={`px-2.5 py-1 rounded-xl text-xs font-mono border transition-all ${
+                      isSelected
+                        ? 'bg-red-700 text-white border-red-700 font-semibold shadow-sm scale-[1.02]'
+                        : isDark
+                        ? 'bg-neutral-800 hover:bg-red-950/80 hover:text-red-300 hover:border-red-800 text-neutral-300 border-neutral-700'
+                        : 'bg-stone-100 hover:bg-red-50 hover:text-red-700 hover:border-red-200 text-stone-700 border-stone-200'
+                    }`}
+                    title={isSelected ? `Click again to insert ${preset}` : `Select ${preset}`}
+                  >
+                    {preset}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

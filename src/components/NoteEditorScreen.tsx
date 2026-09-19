@@ -207,6 +207,31 @@ interface TextBlockItemProps {
   autoFocus?: boolean;
 }
 
+// Helper to obtain Range from coordinates across WebKit/Blink and standard browsers
+function getRangeFromPoint(x: number, y: number): Range | null {
+  if (typeof document === 'undefined') return null;
+  if (typeof document.caretRangeFromPoint === 'function') {
+    try {
+      return document.caretRangeFromPoint(x, y);
+    } catch {
+      // ignore
+    }
+  } else if ('caretPositionFromPoint' in document) {
+    try {
+      const pos = (document as unknown as { caretPositionFromPoint: (px: number, py: number) => { offsetNode: Node; offset: number } | null }).caretPositionFromPoint(x, y);
+      if (pos && pos.offsetNode) {
+        const range = document.createRange();
+        range.setStart(pos.offsetNode, pos.offset);
+        range.collapse(true);
+        return range;
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return null;
+}
+
 const TextBlockItem: React.FC<TextBlockItemProps> = ({
   block,
   blockIndex,
@@ -225,11 +250,25 @@ const TextBlockItem: React.FC<TextBlockItemProps> = ({
   const lastTapHandledRef = useRef<number>(0);
   const touchStartPosRef = useRef<{ x: number; y: number; time: number; target: HTMLElement | null } | null>(null);
 
-  // Helper to place caret at end of contenteditable element safely without forcing page jump or scroll shift
-  const focusEditorAndPlaceCaret = () => {
+  // Helper to place caret at tapped coordinates or end of contenteditable element safely
+  const focusEditorAndPlaceCaret = (clientX?: number, clientY?: number) => {
     if (!editorRef.current) return;
     try {
       editorRef.current.focus({ preventScroll: true });
+      if (clientX !== undefined && clientY !== undefined) {
+        const range = getRangeFromPoint(clientX, clientY);
+        if (
+          range &&
+          (editorRef.current.contains(range.startContainer) || range.startContainer === editorRef.current)
+        ) {
+          const sel = window.getSelection();
+          if (sel) {
+            sel.removeAllRanges();
+            sel.addRange(range);
+            return;
+          }
+        }
+      }
       const sel = window.getSelection();
       if (sel) {
         const range = document.createRange();
@@ -401,6 +440,16 @@ const TextBlockItem: React.FC<TextBlockItemProps> = ({
     ensureCaretVisible(70);
   };
 
+  const handleBlur = () => {
+    if (!editorRef.current) return;
+    const currentHtml = editorRef.current.innerHTML;
+    const processedHtml = processHtmlWithReferences(currentHtml);
+    if (processedHtml !== currentHtml) {
+      editorRef.current.innerHTML = processedHtml;
+      onChange(processedHtml);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     // Prevent accidental block deletion
     if (e.key === 'Backspace') {
@@ -423,8 +472,21 @@ const TextBlockItem: React.FC<TextBlockItemProps> = ({
     }
   };
 
+  const isLastBlock = totalBlocksCount !== undefined ? blockIndex === totalBlocksCount - 1 : false;
+
   return (
-    <div className="relative min-h-[40px] py-1 cursor-text">
+    <div
+      onClick={(e) => {
+        // If user tapped on padding/wrapper outside editorRef and not on an interactive chip
+        if (editorRef.current && e.target !== editorRef.current) {
+          const interactive = (e.target as HTMLElement).closest('[data-ref], .ref-chip, button, audio, video, img, a');
+          if (!interactive) {
+            focusEditorAndPlaceCaret(e.clientX, e.clientY);
+          }
+        }
+      }}
+      className="relative min-h-[40px] py-1 cursor-text"
+    >
       <div
         ref={editorRef}
         contentEditable
@@ -435,9 +497,12 @@ const TextBlockItem: React.FC<TextBlockItemProps> = ({
         onKeyUp={() => onSelectionChange?.()}
         onMouseUp={() => onSelectionChange?.()}
         onFocus={() => onSelectionChange?.()}
+        onBlur={handleBlur}
         data-placeholder="Start typing..."
         style={{ color: darkMode ? '#f8fafc' : '#0f172a' }}
-        className="w-full bg-transparent font-serif text-base sm:text-lg leading-relaxed text-stone-900 dark:text-stone-100 focus:outline-none p-0 empty:before:content-[attr(data-placeholder)] empty:before:text-stone-400/40 select-text"
+        className={`w-full bg-transparent font-serif text-base sm:text-lg leading-relaxed text-stone-900 dark:text-stone-100 focus:outline-none p-0 empty:before:content-[attr(data-placeholder)] empty:before:text-stone-400/40 select-text ${
+          isLastBlock ? 'min-h-[240px] sm:min-h-[360px]' : 'min-h-[32px]'
+        }`}
       />
     </div>
   );
@@ -477,6 +542,23 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
   const [customRefInput, setCustomRefInput] = useState<string>('Matt 5 v 7-20');
   const [showFormatToolbar, setShowFormatToolbar] = useState<boolean>(false);
   const dateInputRef = useRef<HTMLInputElement>(null);
+  const titleTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const adjustTitleHeight = () => {
+    const el = titleTextareaRef.current;
+    if (el) {
+      el.style.height = 'auto';
+      el.style.height = `${el.scrollHeight}px`;
+    }
+  };
+
+  useEffect(() => {
+    adjustTitleHeight();
+    window.addEventListener('resize', adjustTitleHeight);
+    return () => {
+      window.removeEventListener('resize', adjustTitleHeight);
+    };
+  }, [title]);
 
   const [activeFormats, setActiveFormats] = useState<{
     bold: boolean;
@@ -1100,6 +1182,102 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
     insertBlockAt(newBlock, atIndex !== undefined ? atIndex : activeBlockIndex);
   };
 
+  const lastCanvasTapHandledRef = useRef<number>(0);
+  const canvasTouchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+
+  // Activates the text cursor and brings up software keyboard when tapping anywhere on blank space
+  const handleBlankAreaActivation = (clientX: number, clientY: number, targetEl: HTMLElement) => {
+    // If the tap targeted an interactive UI control, let it handle its event
+    if (
+      targetEl.closest(
+        'button, input, textarea, select, [data-ref], .ref-chip, audio, video, a, [role="button"], [role="menuitem"]'
+      )
+    ) {
+      return;
+    }
+
+    // If the user tapped directly inside an already focused contenteditable element, let native caret handle it
+    if (targetEl.isContentEditable && document.activeElement === targetEl) {
+      return;
+    }
+
+    // If no blocks or the last block is not a text block, create and focus a new text block
+    if (blocks.length === 0 || blocks[blocks.length - 1].type !== 'text') {
+      handleAddTextBlock(blocks.length - 1);
+      setTimeout(() => {
+        const textEditors = document.querySelectorAll<HTMLElement>('#main-canvas [contenteditable="true"]');
+        const last = textEditors[textEditors.length - 1];
+        if (last) {
+          last.focus({ preventScroll: true });
+          const sel = window.getSelection();
+          if (sel) {
+            const range = document.createRange();
+            range.selectNodeContents(last);
+            range.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(range);
+          }
+        }
+      }, 50);
+      return;
+    }
+
+    // First, check if caretRangeFromPoint / caretPositionFromPoint can place the caret accurately at the tapped coordinates
+    let placedAtPoint = false;
+    const rangeAtPoint = getRangeFromPoint(clientX, clientY);
+    if (rangeAtPoint) {
+      const container =
+        rangeAtPoint.startContainer.nodeType === Node.ELEMENT_NODE
+          ? (rangeAtPoint.startContainer as HTMLElement)
+          : rangeAtPoint.startContainer.parentElement;
+      const editable = container?.closest<HTMLElement>('[contenteditable="true"]');
+      if (editable && editable.closest('#main-canvas')) {
+        editable.focus({ preventScroll: true });
+        const sel = window.getSelection();
+        if (sel) {
+          sel.removeAllRanges();
+          sel.addRange(rangeAtPoint);
+          placedAtPoint = true;
+        }
+        const idxStr = editable.getAttribute('data-block-index');
+        if (idxStr) {
+          setActiveBlockIndex(parseInt(idxStr, 10));
+        }
+      }
+    }
+
+    // If tap was in the blank portion of the screen below text or in container padding
+    if (!placedAtPoint) {
+      const textEditors = Array.from(
+        document.querySelectorAll<HTMLElement>('#main-canvas [contenteditable="true"]')
+      );
+      if (textEditors.length > 0) {
+        let bestEditor = textEditors[textEditors.length - 1];
+        for (const ed of textEditors) {
+          const rect = ed.getBoundingClientRect();
+          if (clientY >= rect.top && clientY <= rect.bottom) {
+            bestEditor = ed;
+            break;
+          }
+        }
+
+        bestEditor.focus({ preventScroll: true });
+        const sel = window.getSelection();
+        if (sel) {
+          const range = document.createRange();
+          range.selectNodeContents(bestEditor);
+          range.collapse(false);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+        const idxStr = bestEditor.getAttribute('data-block-index');
+        if (idxStr) {
+          setActiveBlockIndex(parseInt(idxStr, 10));
+        }
+      }
+    }
+  };
+
   // Handle Voice Note created
   const handleAddVoiceNote = (voiceBlock: VoiceBlock) => {
     insertMediaWithTextBelow(voiceBlock);
@@ -1552,24 +1730,46 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
       {/* Main Scrollable Editor Workspace */}
       <div
         id="main-canvas"
-        onClick={(e) => {
-          if ((e.target as HTMLElement).id === 'main-canvas' || e.target === e.currentTarget) {
-            if (blocks.length === 0 || blocks[blocks.length - 1].type !== 'text') {
-              handleAddTextBlock(blocks.length - 1);
-            } else {
-              setActiveBlockIndex(blocks.length - 1);
-            }
+        onTouchStart={(e) => {
+          if (e.touches.length === 1) {
+            canvasTouchStartRef.current = {
+              x: e.touches[0].clientX,
+              y: e.touches[0].clientY,
+              time: Date.now(),
+            };
+          } else {
+            canvasTouchStartRef.current = null;
           }
         }}
-        className="flex-1 p-4 sm:p-6 max-w-2xl mx-auto w-full space-y-4 pb-36 min-h-[70vh] cursor-text"
+        onTouchEnd={(e) => {
+          if (!canvasTouchStartRef.current) return;
+          const start = canvasTouchStartRef.current;
+          canvasTouchStartRef.current = null;
+          const duration = Date.now() - start.time;
+          const touch = e.changedTouches[0];
+          if (!touch) return;
+          const dist = Math.hypot(touch.clientX - start.x, touch.clientY - start.y);
+          // If a quick tap with minimal movement (< 15px), activate cursor immediately on Android
+          if (duration < 500 && dist < 15) {
+            lastCanvasTapHandledRef.current = Date.now();
+            handleBlankAreaActivation(touch.clientX, touch.clientY, e.target as HTMLElement);
+          }
+        }}
+        onClick={(e) => {
+          if (Date.now() - lastCanvasTapHandledRef.current < 400) return;
+          handleBlankAreaActivation(e.clientX, e.clientY, e.target as HTMLElement);
+        }}
+        className="flex-1 p-4 sm:p-6 max-w-2xl mx-auto w-full space-y-4 pb-36 min-h-[75vh] cursor-text"
       >
-        {/* Title Input */}
-        <input
-          type="text"
+        {/* Title Input (Auto-wrapping to next line with dynamic height expansion) */}
+        <textarea
+          ref={titleTextareaRef}
           value={title}
+          rows={1}
           onChange={(e) => setTitle(e.target.value)}
+          onInput={adjustTitleHeight}
           placeholder="Title..."
-          className="w-full text-2xl sm:text-3xl font-extrabold tracking-tight bg-transparent focus:outline-none placeholder:text-stone-400/60 text-stone-900 dark:text-white"
+          className="w-full text-2xl sm:text-3xl font-extrabold tracking-tight bg-transparent focus:outline-none placeholder:text-stone-400/60 text-stone-900 dark:text-white resize-none overflow-hidden break-words leading-snug block"
         />
 
         {/* Sequential Mixed Content Blocks List */}
@@ -1591,7 +1791,15 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
             return (
               <div
                 key={block.id}
-                onClick={() => setActiveBlockIndex(index)}
+                onClick={(e) => {
+                  setActiveBlockIndex(index);
+                  if (block.type === 'text' && e.target === e.currentTarget) {
+                    const editorEl = document.querySelector(`[data-block-index="${index}"]`) as HTMLElement | null;
+                    if (editorEl) {
+                      editorEl.focus({ preventScroll: true });
+                    }
+                  }
+                }}
                 className="relative group transition-all"
               >
                 {/* Subtle Hover Action Bar for moving/deleting block */}
@@ -1713,7 +1921,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
 
       {/* Bottom Action Bar (Input Media & Reference Toolbar) */}
       <div
-        className={`fixed bottom-0 left-0 right-0 z-30 p-2 sm:p-3 border-t flex flex-col gap-2 ${bottomBarClass} backdrop-blur-md shadow-lg max-w-2xl mx-auto rounded-t-3xl`}
+        className={`fixed bottom-0 left-0 right-0 z-30 px-2 py-2 sm:p-3 border-t flex flex-col gap-2 ${bottomBarClass} backdrop-blur-md shadow-lg max-w-2xl mx-auto rounded-t-3xl`}
       >
         {/* Rich Text Formatting Sub-Toolbar Drawer attached directly under/above the Text button */}
         {showFormatToolbar && (
@@ -1940,8 +2148,8 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
           </div>
         )}
 
-        <div className="flex items-center justify-around gap-1.5 pt-1">
-          {/* Add Text Block / Toggle Format Options */}
+        <div className="flex items-center justify-between gap-1 sm:gap-2 pt-0.5">
+          {/* Add Text Block / Toggle Format Options - Unaffected */}
           <button
             type="button"
             onMouseDown={(e) => {
@@ -1955,7 +2163,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
             onClick={(e) => {
               e.preventDefault();
             }}
-            className={`flex-1 py-2 px-2.5 rounded-2xl text-xs font-bold flex items-center justify-center gap-1 border transition-all active:scale-95 ${
+            className={`py-2 px-2.5 sm:px-3 rounded-2xl text-xs font-bold flex items-center justify-center gap-1 border transition-all active:scale-95 shrink-0 ${
               showFormatToolbar || activeFormats.bold || activeFormats.italic || activeFormats.underline
                 ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
                 : toolbarBtnClass
@@ -1966,43 +2174,43 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
             <span>Text</span>
           </button>
 
-          {/* Add Image/Photo Button */}
+          {/* Add Image/Photo Button - Compact icon with responsive/shortened text */}
           <button
             type="button"
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => fileInputRef.current?.click()}
-            className={`flex-1 py-2 px-2.5 rounded-2xl text-xs font-bold flex items-center justify-center gap-1 border transition-transform active:scale-95 ${toolbarBtnClass}`}
+            className={`py-2 px-2 sm:px-2.5 rounded-2xl text-xs font-bold flex items-center justify-center gap-1 border transition-transform active:scale-95 shrink-0 ${toolbarBtnClass}`}
             title="Add photo or image from gallery"
           >
             <ImageIcon className="w-4 h-4 text-emerald-500" />
-            <span>Photo</span>
+            <span className="hidden min-[380px]:inline">Photo</span>
           </button>
 
-          {/* Add Voice Note Button */}
+          {/* Add Voice Note Button - Compact icon with responsive/shortened text */}
           <button
             type="button"
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => setShowVoiceRecorder(true)}
-            className={`flex-1 py-2 px-2.5 rounded-2xl text-xs font-bold flex items-center justify-center gap-1 border transition-transform active:scale-95 ${toolbarBtnClass}`}
+            className={`py-2 px-2 sm:px-2.5 rounded-2xl text-xs font-bold flex items-center justify-center gap-1 border transition-transform active:scale-95 shrink-0 ${toolbarBtnClass}`}
             title="Record audio voice note"
           >
             <Mic className="w-4 h-4 text-rose-500" />
-            <span>Voice</span>
+            <span className="hidden min-[380px]:inline">Voice</span>
           </button>
 
-          {/* Add Sketch Button */}
+          {/* Add Sketch Button - Compact icon with responsive/shortened text */}
           <button
             type="button"
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => setShowDrawingCanvas(true)}
-            className={`flex-1 py-2 px-2.5 rounded-2xl text-xs font-bold flex items-center justify-center gap-1 border transition-transform active:scale-95 ${toolbarBtnClass}`}
+            className={`py-2 px-2 sm:px-2.5 rounded-2xl text-xs font-bold flex items-center justify-center gap-1 border transition-transform active:scale-95 shrink-0 ${toolbarBtnClass}`}
             title="Draw prayer sketch"
           >
             <Edit3 className="w-4 h-4 text-amber-500" />
-            <span>Sketch</span>
+            <span className="hidden min-[380px]:inline">Sketch</span>
           </button>
 
-          {/* + Reference Button */}
+          {/* + Reference Button - Restored full form with prominent prominence */}
           <button
             type="button"
             onMouseDown={(e) => {
@@ -2013,11 +2221,11 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
               saveSelection();
               setShowReferenceModal(true);
             }}
-            className="flex-1 py-2 px-2.5 rounded-2xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold flex items-center justify-center gap-1 shadow-md transition-transform active:scale-95 shrink-0"
-            title="Add Bible verse reference"
+            className="flex-1 min-w-0 py-2 px-2.5 sm:px-4 rounded-2xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-md transition-transform active:scale-95"
+            title="Add Bible verse reference or Strong's concordance"
           >
-            <BookOpen className="w-4 h-4" />
-            <span>+ Reference</span>
+            <BookOpen className="w-4 h-4 shrink-0" />
+            <span className="truncate whitespace-nowrap">+ Reference</span>
           </button>
         </div>
       </div>

@@ -77,6 +77,9 @@ export function formatRefMatch(match: BibleReferenceMatch, format?: RefFormat): 
   const bookDisp = targetFormat === 'short'
     ? (BOOK_SHORT_NAMES[match.bookName] || match.bookName)
     : match.bookName;
+  if (match.isFullChapter) {
+    return `${bookDisp} ${match.chapter}`;
+  }
   const verseStr = match.endVerse && match.endVerse !== match.startVerse
     ? `${match.startVerse}-${match.endVerse}`
     : `${match.startVerse}`;
@@ -120,14 +123,15 @@ function escapeRegExp(str: string) {
 const BOOK_PATTERN = SORTED_BOOK_KEYS.map((key) => escapeRegExp(key)).join('|');
 
 // Regex matches patterns like:
-// "Matt 5:7", "Matthew 5 v 7", "Matt 5 v 7-20", "1 Cor 13:4-7", "Jn 3:16", "Romans 8:28-30"
+// "Matt 5:7", "Matthew 5 v 7", "Matt 5 v 7-20", "1 Cor 13:4-7", "Jn 3:16", "Romans 8:28-30", "Daniel 5", "Dan 5", "Genesis 1"
 const BIBLE_REF_REGEX = new RegExp(
-  `\\b(${BOOK_PATTERN})\\b[\\s.]*(\\d{1,3})[\\s]*(?:[:.]|v|ver|verse)?[\\s]*(\\d{1,3})(?:[\\s]*(?:[-–—]|to)[\\s]*(\\d{1,5}))?`,
+  `\\b(${BOOK_PATTERN})\\b[\\s.]*(\\d{1,3})(?:(?:[\\s]*(?:[:.]|v\\b|ver\\b|verse\\b)[\\s]*|[\\s]+)(\\d{1,3})(?:[\\s]*(?:[-–—]|to)[\\s]*(\\d{1,5}))?)?`,
   'gi'
 );
 
 /**
  * Scans text and extracts all valid Bible references with strict chapter/verse bounds.
+ * Supports both full chapter references (e.g. "Daniel 5", "John 3") and verse references.
  */
 export function parseBibleReferences(text: string): BibleReferenceMatch[] {
   if (!text || typeof text !== 'string') return [];
@@ -148,28 +152,48 @@ export function parseBibleReferences(text: string): BibleReferenceMatch[] {
 
     if (bookObj) {
       const chapter = parseInt(chapterStr, 10);
-      const startVerse = parseInt(startVerseStr, 10);
-      const endVerse = endVerseStr ? parseInt(endVerseStr, 10) : undefined;
-
-      // Strict Chapter & Verse Bounds Checking
       const isChapterValid = chapter > 0 && chapter <= bookObj.chaptersCount;
       const maxVerses = getMaxVersesForChapter(bookObj.name, chapter);
 
-      const isStartVerseValid = startVerse > 0 && startVerse <= maxVerses;
-      const isEndVerseValid =
-        endVerse === undefined ||
-        (endVerse >= startVerse && endVerse <= maxVerses && endVerse - startVerse <= 50);
+      if (!isChapterValid || maxVerses <= 0) {
+        continue;
+      }
 
-      if (isChapterValid && isStartVerseValid && isEndVerseValid) {
+      if (startVerseStr !== undefined) {
+        const startVerse = parseInt(startVerseStr, 10);
+        const endVerse = endVerseStr ? parseInt(endVerseStr, 10) : undefined;
+
+        // Strict Chapter & Verse Bounds Checking
+        const isStartVerseValid = startVerse > 0 && startVerse <= maxVerses;
+        const isEndVerseValid =
+          endVerse === undefined ||
+          (endVerse >= startVerse && endVerse <= maxVerses && endVerse - startVerse <= 50);
+
+        if (isStartVerseValid && isEndVerseValid) {
+          matches.push({
+            fullMatch: match[0],
+            bookName: bookObj.name,
+            bookId: bookObj.id,
+            chapter,
+            startVerse,
+            endVerse,
+            startIndex: match.index,
+            endIndex: match.index + match[0].length,
+            isFullChapter: false,
+          });
+        }
+      } else {
+        // Full Chapter Reference (e.g. "Daniel 5", "Dan 5", "John 3", "Genesis 1")
         matches.push({
           fullMatch: match[0],
           bookName: bookObj.name,
           bookId: bookObj.id,
           chapter,
-          startVerse,
-          endVerse,
+          startVerse: 1,
+          endVerse: maxVerses,
           startIndex: match.index,
           endIndex: match.index + match[0].length,
+          isFullChapter: true,
         });
       }
     }

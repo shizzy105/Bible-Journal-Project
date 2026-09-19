@@ -32,7 +32,9 @@ import {
   Archive,
   Image as ImageIcon,
   Music,
+  ShieldCheck,
 } from 'lucide-react';
+import { PrivacyPolicyModal } from './PrivacyPolicyModal';
 import {
   AppTheme,
   RefFormat,
@@ -72,6 +74,7 @@ interface SettingsScreenProps {
   onOpenRecentlyDeleted: () => void;
   onNotesImported?: () => void;
   onOpenAndroidCode?: () => void;
+  darkMode?: boolean;
 }
 
 const FONT_OPTIONS: {
@@ -150,6 +153,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onOpenRecentlyDeleted,
   onNotesImported,
   onOpenAndroidCode,
+  darkMode = false,
 }) => {
   const [selectedTranslation, setSelectedTranslation] = useState<string>('KJV');
   const [downloadedList, setDownloadedList] = useState<string[]>(['KJV', 'WEB']);
@@ -180,6 +184,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [importSuccessMsg, setImportSuccessMsg] = useState<string | null>(null);
   const [importErrorMsg, setImportErrorMsg] = useState<string | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState<boolean>(false);
+  const [showPrivacyPolicy, setShowPrivacyPolicy] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Accordion rollup state for each subgroup
@@ -521,9 +526,19 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     return found ? found.name : 'Original Default';
   };
 
-  const isPureBlack = currentTheme === 'black';
-  const isNavy = currentTheme === 'navy';
-  const isNeutralDark = currentTheme === 'dark';
+  const isPureBlack =
+    currentTheme === 'black' ||
+    (typeof document !== 'undefined' && document.documentElement.classList.contains('pure-black'));
+  const isNavy =
+    currentTheme === 'navy' ||
+    (typeof document !== 'undefined' && document.documentElement.classList.contains('navy'));
+  const isEffectiveDark =
+    darkMode ||
+    currentTheme === 'dark' ||
+    isPureBlack ||
+    isNavy ||
+    (typeof document !== 'undefined' && document.documentElement.classList.contains('dark'));
+  const isNeutralDark = isEffectiveDark && !isPureBlack && !isNavy;
 
   const bgClass = isPureBlack
     ? 'bg-black text-neutral-100'
@@ -772,13 +787,13 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                       className={`p-4 rounded-2xl border-2 text-left transition-all relative flex flex-col justify-between gap-2.5 ${
                         isSelected
                           ? 'border-red-600 bg-red-500/5 ring-2 ring-red-500/20'
-                          : currentTheme === 'black'
+                          : isPureBlack
                           ? 'border-neutral-800 bg-neutral-950 hover:border-neutral-700 text-neutral-200'
-                          : currentTheme === 'dark'
-                          ? 'border-neutral-800 bg-neutral-900/50 hover:border-neutral-700'
-                          : currentTheme === 'navy'
+                          : isNavy
                           ? 'border-[#3a506b] bg-[#1c2541]/50 hover:border-[#5bc0be]'
-                          : 'border-stone-200 bg-white hover:border-stone-300'
+                          : isNeutralDark
+                          ? 'border-neutral-800 bg-neutral-900/50 hover:border-neutral-700 text-neutral-200'
+                          : 'border-stone-200 bg-white hover:border-stone-300 text-stone-900'
                       }`}
                     >
                       <div className="flex items-center justify-between w-full">
@@ -1526,12 +1541,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               <button
                 onClick={onOpenRecentlyDeleted}
                 className={`w-full p-4 rounded-2xl border flex items-center justify-between transition-all group ${
-                  currentTheme === 'black'
+                  isPureBlack
                     ? 'bg-neutral-950 hover:bg-neutral-900 border-neutral-800'
-                    : currentTheme === 'dark'
-                    ? 'bg-neutral-900 hover:bg-neutral-800 border-neutral-800'
-                    : currentTheme === 'navy'
+                    : isNavy
                     ? 'bg-[#1c2541]/80 hover:bg-[#232f55] border-[#3a506b]'
+                    : isNeutralDark
+                    ? 'bg-neutral-900 hover:bg-neutral-800 border-neutral-800'
                     : 'bg-stone-50 hover:bg-stone-100 border-stone-200'
                 }`}
               >
@@ -1563,12 +1578,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           id="settings-contact-panel"
           href="mailto:asornotes@gmail.com?subject=Bible%20Journal%20Feedback"
           className={`block rounded-3xl border transition-all overflow-hidden shadow-xs group cursor-pointer ${
-            currentTheme === 'black'
+            isPureBlack
               ? 'bg-neutral-950 hover:bg-neutral-900 border-neutral-900 hover:border-neutral-800'
-              : currentTheme === 'dark'
-              ? 'bg-neutral-900/90 hover:bg-neutral-800/90 border-neutral-800 hover:border-neutral-700'
-              : currentTheme === 'navy'
+              : isNavy
               ? 'bg-[#1c2541]/80 hover:bg-[#232f55] border-[#3a506b] hover:border-[#4f6d7a]'
+              : isNeutralDark
+              ? 'bg-neutral-900/90 hover:bg-neutral-800/90 border-neutral-800 hover:border-neutral-700'
               : 'bg-white hover:bg-stone-50 border-stone-200 hover:border-stone-300'
           }`}
         >
@@ -1597,7 +1612,56 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             </div>
           </div>
         </a>
+
+        {/* SUBGROUP 8: PRIVACY POLICY & COMPLIANCE */}
+        <button
+          id="settings-privacy-policy-panel"
+          type="button"
+          onClick={() => setShowPrivacyPolicy(true)}
+          className={`w-full block rounded-3xl border transition-all overflow-hidden shadow-xs group cursor-pointer text-left ${
+            isPureBlack
+              ? 'bg-neutral-950 hover:bg-neutral-900 border-neutral-900 hover:border-neutral-800'
+              : isNavy
+              ? 'bg-[#1c2541]/80 hover:bg-[#232f55] border-[#3a506b] hover:border-[#4f6d7a]'
+              : isNeutralDark
+              ? 'bg-neutral-900/90 hover:bg-neutral-800/90 border-neutral-800 hover:border-neutral-700'
+              : 'bg-white hover:bg-stone-50 border-stone-200 hover:border-stone-300'
+          }`}
+        >
+          <div className="w-full p-4 sm:p-5 flex items-center justify-between text-left">
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 dark:bg-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 group-hover:scale-105 transition-transform">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-base font-bold tracking-tight group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                  Privacy Policy & Data Security
+                </h2>
+                <div className="text-xs opacity-60 truncate">
+                  Offline-first • Zero tracking • Local storage only
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0 ml-2">
+              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                100% Private
+              </span>
+              <div className="p-1.5 rounded-xl bg-stone-200/50 dark:bg-neutral-800 text-stone-600 dark:text-stone-300 group-hover:translate-x-0.5 transition-transform">
+                <ChevronRight className="w-4 h-4" />
+              </div>
+            </div>
+          </div>
+        </button>
       </div>
+
+      {/* Privacy Policy Modal */}
+      {showPrivacyPolicy && (
+        <PrivacyPolicyModal
+          onClose={() => setShowPrivacyPolicy(false)}
+          darkMode={isEffectiveDark}
+        />
+      )}
     </div>
   );
 };

@@ -902,7 +902,10 @@ export async function fetchBibleVersesAsync(
 
   // 3. Secondary Online API: bible-api.com
   try {
-    const refStr = `${canonicalName} ${chapter}:${startVerse}${endVerse && endVerse !== startVerse ? `-${endVerse}` : ''}`;
+    const isFullChapter = startVerse === 1 && endVerse !== undefined && endVerse === getMaxVersesForChapter(canonicalName, chapter);
+    const refStr = isFullChapter
+      ? `${canonicalName} ${chapter}`
+      : `${canonicalName} ${chapter}:${startVerse}${endVerse && endVerse !== startVerse ? `-${endVerse}` : ''}`;
     const apiTrans = transKey === 'WEB' ? 'web' : 'kjv';
     const response = await fetch(
       `https://bible-api.com/${encodeURIComponent(refStr)}?translation=${apiTrans}`

@@ -70,6 +70,7 @@ export interface BibleReferenceMatch {
   endVerse?: number;
   startIndex: number;
   endIndex: number;
+  isFullChapter?: boolean;
 }
 
 export interface BibleVerse {

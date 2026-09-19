@@ -392,6 +392,7 @@ export default function App() {
                 window.history.pushState({ modal: 'android_export' }, '');
               } catch {}
             }}
+            darkMode={effectiveDarkMode}
           />
         )}
 
