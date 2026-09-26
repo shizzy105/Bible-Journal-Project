@@ -11,12 +11,12 @@ export const BIBLE_BOOKS: BibleBook[] = [
   { id: 'JOSH', name: 'Joshua', abbreviations: ['josh', 'jos', 'jsh'], testament: 'OT', chaptersCount: 24 },
   { id: 'JUDG', name: 'Judges', abbreviations: ['judg', 'jdg', 'jg', 'jdgs'], testament: 'OT', chaptersCount: 21 },
   { id: 'RUTH', name: 'Ruth', abbreviations: ['ruth', 'rth', 'ru'], testament: 'OT', chaptersCount: 4 },
-  { id: '1SAM', name: '1 Samuel', abbreviations: ['1 sam', '1sam', '1s', 'i sam'], testament: 'OT', chaptersCount: 31 },
-  { id: '2SAM', name: '2 Samuel', abbreviations: ['2 sam', '2sam', '2s', 'ii sam'], testament: 'OT', chaptersCount: 24 },
-  { id: '1KGS', name: '1 Kings', abbreviations: ['1 kings', '1kgs', '1k', 'i kings'], testament: 'OT', chaptersCount: 22 },
-  { id: '2KGS', name: '2 Kings', abbreviations: ['2 kings', '2kgs', '2k', 'ii kings'], testament: 'OT', chaptersCount: 25 },
-  { id: '1CHR', name: '1 Chronicles', abbreviations: ['1 chron', '1chr', '1ch', 'i chron'], testament: 'OT', chaptersCount: 29 },
-  { id: '2CHR', name: '2 Chronicles', abbreviations: ['2 chron', '2chr', '2ch', 'ii chron'], testament: 'OT', chaptersCount: 36 },
+  { id: '1SAM', name: '1 Samuel', abbreviations: ['1 sam', '1 samuel', '1sam', '1s', '1 s', 'i sam', '1st samuel', 'first samuel', '1sa', '1 sa', '1sm', '1 sm', '1st sam', 'first sam'], testament: 'OT', chaptersCount: 31 },
+  { id: '2SAM', name: '2 Samuel', abbreviations: ['2 sam', '2 samuel', '2sam', '2s', '2 s', 'ii sam', '2nd samuel', 'second samuel', '2sa', '2 sa', '2sm', '2 sm', '2nd sam', 'second sam'], testament: 'OT', chaptersCount: 24 },
+  { id: '1KGS', name: '1 Kings', abbreviations: ['1 kings', '1kgs', '1 kgs', '1ki', '1 ki', '1kin', '1 kin', '1 king', '1st kings', 'first kings', 'i kings', 'i kgs', 'i ki', '1st king', 'first king', '1k', '1 k'], testament: 'OT', chaptersCount: 22 },
+  { id: '2KGS', name: '2 Kings', abbreviations: ['2 kings', '2kgs', '2 kgs', '2ki', '2 ki', '2kin', '2 kin', '2 king', '2nd kings', 'second kings', 'ii kings', 'ii kgs', 'ii ki', '2nd king', 'second king', '2k', '2 k'], testament: 'OT', chaptersCount: 25 },
+  { id: '1CHR', name: '1 Chronicles', abbreviations: ['1 chron', '1 chronicles', '1chr', '1 chr', '1ch', '1 ch', 'i chron', '1st chronicles', 'first chronicles', '1chron', '1st chron', 'first chron'], testament: 'OT', chaptersCount: 29 },
+  { id: '2CHR', name: '2 Chronicles', abbreviations: ['2 chron', '2 chronicles', '2chr', '2 chr', '2ch', '2 ch', 'ii chron', '2nd chronicles', 'second chronicles', '2chron', '2nd chron', 'second chron'], testament: 'OT', chaptersCount: 36 },
   { id: 'EZRA', name: 'Ezra', abbreviations: ['ezra', 'ezr'], testament: 'OT', chaptersCount: 10 },
   { id: 'NEH', name: 'Nehemiah', abbreviations: ['neh', 'ne'], testament: 'OT', chaptersCount: 13 },
   { id: 'ESTH', name: 'Esther', abbreviations: ['esth', 'est', 'es'], testament: 'OT', chaptersCount: 10 },
@@ -50,25 +50,25 @@ export const BIBLE_BOOKS: BibleBook[] = [
   { id: 'JHN', name: 'John', abbreviations: ['john', 'jhn', 'jn'], testament: 'NT', chaptersCount: 21 },
   { id: 'ACT', name: 'Acts', abbreviations: ['acts', 'act', 'ac'], testament: 'NT', chaptersCount: 28 },
   { id: 'ROM', name: 'Romans', abbreviations: ['rom', 'ro', 'rm'], testament: 'NT', chaptersCount: 16 },
-  { id: '1COR', name: '1 Corinthians', abbreviations: ['1 cor', '1cor', '1co', 'i cor'], testament: 'NT', chaptersCount: 16 },
-  { id: '2COR', name: '2 Corinthians', abbreviations: ['2 cor', '2cor', '2co', 'ii cor'], testament: 'NT', chaptersCount: 13 },
+  { id: '1COR', name: '1 Corinthians', abbreviations: ['1 cor', '1 corinthians', '1cor', '1co', '1 co', 'i cor', '1st corinthians', 'first corinthians', '1st cor', 'first cor'], testament: 'NT', chaptersCount: 16 },
+  { id: '2COR', name: '2 Corinthians', abbreviations: ['2 cor', '2 corinthians', '2cor', '2co', '2 co', 'ii cor', '2nd corinthians', 'second corinthians', '2nd cor', 'second cor'], testament: 'NT', chaptersCount: 13 },
   { id: 'GAL', name: 'Galatians', abbreviations: ['gal', 'ga'], testament: 'NT', chaptersCount: 6 },
   { id: 'EPH', name: 'Ephesians', abbreviations: ['eph', 'ep'], testament: 'NT', chaptersCount: 6 },
-  { id: 'PHP', name: 'Philippians', abbreviations: ['phil', 'php', 'pp'], testament: 'NT', chaptersCount: 4 },
-  { id: 'COL', name: 'Colossians', abbreviations: ['col', 'co'], testament: 'NT', chaptersCount: 4 },
-  { id: '1THS', name: '1 Thessalonians', abbreviations: ['1 thess', '1ths', '1th', 'i thess'], testament: 'NT', chaptersCount: 5 },
-  { id: '2THS', name: '2 Thessalonians', abbreviations: ['2 thess', '2ths', '2th', 'ii thess'], testament: 'NT', chaptersCount: 3 },
-  { id: '1TIM', name: '1 Timothy', abbreviations: ['1 tim', '1tim', '1ti', 'i tim'], testament: 'NT', chaptersCount: 6 },
-  { id: '2TIM', name: '2 Timothy', abbreviations: ['2 tim', '2tim', '2ti', 'ii tim'], testament: 'NT', chaptersCount: 4 },
+  { id: 'PHP', name: 'Philippians', abbreviations: ['phil', 'php', 'pp', 'phi', 'philippians'], testament: 'NT', chaptersCount: 4 },
+  { id: 'COL', name: 'Colossians', abbreviations: ['col', 'co', 'colossians'], testament: 'NT', chaptersCount: 4 },
+  { id: '1THS', name: '1 Thessalonians', abbreviations: ['1 thess', '1 thessalonians', '1thess', '1ths', '1 ths', '1th', '1 th', 'i thess', '1st thessalonians', 'first thessalonians', '1st thess', 'first thess'], testament: 'NT', chaptersCount: 5 },
+  { id: '2THS', name: '2 Thessalonians', abbreviations: ['2 thess', '2 thessalonians', '2thess', '2ths', '2 ths', '2th', '2 th', 'ii thess', '2nd thessalonians', 'second thessalonians', '2nd thess', 'second thess'], testament: 'NT', chaptersCount: 3 },
+  { id: '1TIM', name: '1 Timothy', abbreviations: ['1 tim', '1 timothy', '1tim', '1ti', '1 ti', 'i tim', '1st timothy', 'first timothy', '1st tim', 'first tim'], testament: 'NT', chaptersCount: 6 },
+  { id: '2TIM', name: '2 Timothy', abbreviations: ['2 tim', '2 timothy', '2tim', '2ti', '2 ti', 'ii tim', '2nd timothy', 'second timothy', '2nd tim', 'second tim'], testament: 'NT', chaptersCount: 4 },
   { id: 'TIT', name: 'Titus', abbreviations: ['titus', 'tit', 'ti'], testament: 'NT', chaptersCount: 3 },
-  { id: 'PHM', name: 'Philemon', abbreviations: ['philem', 'phm', 'pm'], testament: 'NT', chaptersCount: 1 },
-  { id: 'HEB', name: 'Hebrews', abbreviations: ['heb', 'he'], testament: 'NT', chaptersCount: 13 },
-  { id: 'JAS', name: 'James', abbreviations: ['jas', 'jm'], testament: 'NT', chaptersCount: 5 },
-  { id: '1PET', name: '1 Peter', abbreviations: ['1 pet', '1pet', '1pe', 'i pet'], testament: 'NT', chaptersCount: 5 },
-  { id: '2PET', name: '2 Peter', abbreviations: ['2 pet', '2pet', '2pe', 'ii pet'], testament: 'NT', chaptersCount: 3 },
-  { id: '1JHN', name: '1 John', abbreviations: ['1 john', '1jhn', '1jn', 'i john'], testament: 'NT', chaptersCount: 5 },
-  { id: '2JHN', name: '2 John', abbreviations: ['2 john', '2jhn', '2jn', 'ii john'], testament: 'NT', chaptersCount: 1 },
-  { id: '3JHN', name: '3 John', abbreviations: ['3 john', '3jhn', '3jn', 'iii john'], testament: 'NT', chaptersCount: 1 },
+  { id: 'PHM', name: 'Philemon', abbreviations: ['philem', 'phm', 'pm', 'phlm', 'philemon'], testament: 'NT', chaptersCount: 1 },
+  { id: 'HEB', name: 'Hebrews', abbreviations: ['heb', 'he', 'hebrews'], testament: 'NT', chaptersCount: 13 },
+  { id: 'JAS', name: 'James', abbreviations: ['jas', 'jm', 'james'], testament: 'NT', chaptersCount: 5 },
+  { id: '1PET', name: '1 Peter', abbreviations: ['1 pet', '1 peter', '1pet', '1pe', '1 pe', 'i pet', '1st peter', 'first peter', '1st pet', 'first pet'], testament: 'NT', chaptersCount: 5 },
+  { id: '2PET', name: '2 Peter', abbreviations: ['2 pet', '2 peter', '2pet', '2pe', '2 pe', 'ii pet', '2nd peter', 'second peter', '2nd pet', 'second pet'], testament: 'NT', chaptersCount: 3 },
+  { id: '1JHN', name: '1 John', abbreviations: ['1 john', '1jhn', '1 jhn', '1jn', '1 jn', 'i john', '1st john', 'first john', '1st jhn', '1st jn'], testament: 'NT', chaptersCount: 5 },
+  { id: '2JHN', name: '2 John', abbreviations: ['2 john', '2jhn', '2 jhn', '2jn', '2 jn', 'ii john', '2nd john', 'second john', '2nd jhn', '2nd jn'], testament: 'NT', chaptersCount: 1 },
+  { id: '3JHN', name: '3 John', abbreviations: ['3 john', '3jhn', '3 jhn', '3jn', '3 jn', 'iii john', '3rd john', 'third john', '3rd jhn', '3rd jn'], testament: 'NT', chaptersCount: 1 },
   { id: 'JUD', name: 'Jude', abbreviations: ['jude', 'jud', 'jd'], testament: 'NT', chaptersCount: 1 },
   { id: 'REV', name: 'Revelation', abbreviations: ['rev', 're', 'rv'], testament: 'NT', chaptersCount: 22 },
 ];
@@ -579,12 +579,31 @@ const VERBATIM_OFFLINE_DB: Record<string, Record<string, string>> = {
  * attached numbers (e.g., LORD3068 -> LORD, requite1580 -> requite),
  * HTML tags, brackets, KJV translator marginal notes (e.g., "to: or, to edify profitably", ": Heb. ...", ": Gr. ..."),
  * and extra spaces.
+ * If preserveStrongs is true, preserves <S>H1234</S> or <S>G1234</S> tags for Concordance view.
  */
-export function sanitizeVerseText(text: string): string {
+export function sanitizeVerseText(text: string, preserveStrongs: boolean = false): string {
   if (!text) return '';
+  if (preserveStrongs) {
+    return text
+      // Remove comment links
+      .replace(/<a[^>]*>.*?<\/a>/gi, '')
+      // Remove <sup> translator footnotes/marginal notes and their contents
+      .replace(/<sup[^>]*>[\s\S]*?<\/sup>/gi, '')
+      .replace(/<sup[^>]*>[\s\S]*$/gi, '')
+      // Remove other HTML tags except <S> and </S> (like <b>, <i>, <br>, <span>, etc.)
+      .replace(/<(?!S\b|\/S>)[^>]*>/gi, '')
+      // Remove trailing translator marginal glosses if un-tagged
+      .replace(/\s*(?:(?:\b[\w\s'’"-]+)?:\s*(?:or,|Heb\.|Gr\.|that is,|some read,|Chald\.|Lat\.|meaning,)[^:]*)+$/gi, '')
+      // Normalize whitespace
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
   return text
+    // Remove <sup> translator footnotes/marginal notes and their contents
+    .replace(/<sup[^>]*>[\s\S]*?<\/sup>/gi, '')
+    .replace(/<sup[^>]*>[\s\S]*$/gi, '')
     // Remove Strong's tags like <S>1580</S> or <S 1580> or <S>
-    .replace(/<S[^>]*>.*?<\/S>/gi, '')
+    .replace(/<S[^>]*>[\s\S]*?<\/S>/gi, '')
     .replace(/<S[^>]*>/gi, '')
     // Remove comment links
     .replace(/<a[^>]*>.*?<\/a>/gi, '')
@@ -687,7 +706,12 @@ export function getBookNumber(bookName: string): number {
 }
 
 // Persistent LocalStorage cache key
-const LOCAL_STORAGE_KEY = 'AMEN_JOURNAL_BIBLE_CACHE_V12';
+const LOCAL_STORAGE_KEY = 'AMEN_JOURNAL_BIBLE_CACHE_V13';
+
+// In-Memory Book Cache (0ms instant access across all chapters and verses)
+export type BookData = Record<string, Record<string, string>>;
+const BOOK_MEMORY_CACHE = new Map<string, BookData>();
+const PENDING_BOOK_FETCHES = new Map<string, Promise<BookData | null>>();
 
 function getStoredCache(): Record<string, string> {
   try {
@@ -702,9 +726,8 @@ function saveToStoredCache(cacheKey: string, text: string) {
   try {
     const cache = getStoredCache();
     cache[cacheKey] = sanitizeVerseText(text);
-    // Keep max 100 verse entries in localStorage to avoid quota limits
     const keys = Object.keys(cache);
-    if (keys.length > 100) {
+    if (keys.length > 250) {
       delete cache[keys[0]];
     }
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cache));
@@ -720,8 +743,8 @@ function saveBatchToStoredCache(entries: Record<string, string>) {
       cache[key] = sanitizeVerseText(val);
     }
     const keys = Object.keys(cache);
-    if (keys.length > 100) {
-      const extra = keys.length - 100;
+    if (keys.length > 300) {
+      const extra = keys.length - 300;
       for (let i = 0; i < extra; i++) {
         delete cache[keys[i]];
       }
@@ -732,7 +755,7 @@ function saveBatchToStoredCache(entries: Record<string, string>) {
   }
 }
 
-function getCanonicalBookName(bookName: string): string {
+export function getCanonicalBookName(bookName: string): string {
   const norm = bookName.trim().toLowerCase();
   const match = BIBLE_BOOKS.find(
     (b) =>
@@ -744,8 +767,109 @@ function getCanonicalBookName(bookName: string): string {
 }
 
 /**
- * Synchronous lookup for rendering. Fully functional offline for all translations!
- * Uses exact verbatim database and local cache.
+ * Pre-load a whole book into memory so all chapters/verses render in 0ms.
+ */
+export async function loadBookData(
+  bookName: string,
+  translation: string = 'KJV'
+): Promise<BookData | null> {
+  const canonicalName = getCanonicalBookName(bookName);
+  const bookNum = getBookNumber(canonicalName);
+  const transKey = translation.toUpperCase();
+  const cacheKey = `${transKey}:${bookNum}`;
+
+  // 1. Instant in-memory cache check (0ms)
+  const existing = BOOK_MEMORY_CACHE.get(cacheKey);
+  if (existing) return existing;
+
+  // 2. In-flight request deduplication
+  const pending = PENDING_BOOK_FETCHES.get(cacheKey);
+  if (pending) return pending;
+
+  const fetchPromise = (async (): Promise<BookData | null> => {
+    // 3. Check bundled local translations first (KJV, KJV_STRONGS, NKJV, ESV, WEB, NIV, NLT)
+    const isBundled = ['KJV', 'KJV_STRONGS', 'NKJV', 'ESV', 'WEB', 'NIV', 'NLT'].includes(transKey);
+
+    if (isBundled) {
+      try {
+        const res = await fetch(`/bible/${transKey}/${bookNum}.json`);
+        if (res.ok) {
+          const data: BookData = await res.json();
+          BOOK_MEMORY_CACHE.set(cacheKey, data);
+          return data;
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // 4. If user asked for an unbundled translation (e.g. NIV, NLT) and is online, try bolls with fast timeout
+    if (!isBundled && typeof navigator !== 'undefined' && navigator.onLine) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 1800);
+        const bollsRes = await fetch(
+          `https://bolls.life/get-chapter/${transKey}/${bookNum}/1/`,
+          { signal: controller.signal }
+        );
+        clearTimeout(timeoutId);
+        if (bollsRes.ok) {
+          // handled per-chapter in fetchBibleVersesAsync
+        }
+      } catch {
+        // fallback
+      }
+    }
+
+    // 5. Offline fallback: only cache KJV as KJV, do not pollute cacheKey of other translations
+    try {
+      const fallbackRes = await fetch(`/bible/KJV/${bookNum}.json`);
+      if (fallbackRes.ok) {
+        const data: BookData = await fallbackRes.json();
+        BOOK_MEMORY_CACHE.set(`KJV:${bookNum}`, data);
+        if (transKey === 'KJV') {
+          return data;
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    return null;
+  })();
+
+  PENDING_BOOK_FETCHES.set(cacheKey, fetchPromise);
+  try {
+    return await fetchPromise;
+  } finally {
+    PENDING_BOOK_FETCHES.delete(cacheKey);
+  }
+}
+
+/**
+ * Prefetch a book quietly in background
+ */
+export function prefetchBook(bookName: string, translation: string = 'KJV') {
+  loadBookData(bookName, translation).catch(() => {});
+}
+
+/**
+ * Prefetch adjacent books for smooth continuous navigation
+ */
+export function prefetchAdjacentBooks(currentBookName: string, translation: string = 'KJV') {
+  const canonicalName = getCanonicalBookName(currentBookName);
+  const bookIndex = BIBLE_BOOKS.findIndex((b) => b.name === canonicalName);
+  if (bookIndex > 0) {
+    prefetchBook(BIBLE_BOOKS[bookIndex - 1].name, translation);
+  }
+  if (bookIndex < BIBLE_BOOKS.length - 1) {
+    prefetchBook(BIBLE_BOOKS[bookIndex + 1].name, translation);
+  }
+}
+
+/**
+ * Synchronous lookup for rendering. 100% functional offline and ultra-fast.
+ * Checks fast in-memory book cache first, then verbatim DB, then local storage.
  */
 export function getBibleVersesSync(
   bookName: string,
@@ -756,29 +880,55 @@ export function getBibleVersesSync(
 ): BibleVerse[] | null {
   const transKey = translation.toUpperCase();
   const finalEndVerse = endVerse && endVerse >= startVerse ? endVerse : startVerse;
+  const canonicalName = getCanonicalBookName(bookName);
+  const bookNum = getBookNumber(canonicalName);
+
+  const isConcordanceKJV = transKey === 'KJV_STRONGS';
+
+  // 1. Check in-memory book cache (0.01ms instant access!)
+  // Strictly check for the requested translation to ensure switching versions works accurately
+  const bookData = BOOK_MEMORY_CACHE.get(`${transKey}:${bookNum}`);
+
+  if (bookData) {
+    const chapterObj = bookData[chapter.toString()];
+    if (chapterObj) {
+      const results: BibleVerse[] = [];
+      for (let v = startVerse; v <= finalEndVerse; v++) {
+        const text = chapterObj[v.toString()];
+        if (text) {
+          results.push({
+            book: canonicalName,
+            chapter,
+            verse: v,
+            text: sanitizeVerseText(text, isConcordanceKJV),
+            translation: transKey,
+          });
+        }
+      }
+      if (results.length === finalEndVerse - startVerse + 1) {
+        return results;
+      }
+    }
+  }
+
+  // 2. Check exact verbatim offline DB & LocalStorage
   const result: BibleVerse[] = [];
   const stored = getStoredCache();
-  const canonicalName = getCanonicalBookName(bookName);
 
   for (let v = startVerse; v <= finalEndVerse; v++) {
     const key = `${canonicalName}:${chapter}:${v}`;
     const rawKey = `${bookName}:${chapter}:${v}`;
     const cacheKey = `${key}:${transKey}`;
 
-    // 1. Check exact verbatim offline DB
+    // A. Check exact verbatim offline DB for requested translation
     let verseText = VERBATIM_OFFLINE_DB[key]?.[transKey] || VERBATIM_OFFLINE_DB[rawKey]?.[transKey];
 
-    // 2. Check exact downloaded/cached verse in LocalStorage
+    // B. Check cached verse in LocalStorage
     if (!verseText) {
       verseText = stored[cacheKey] || stored[`${rawKey}:${transKey}`];
     }
 
-    // 3. Fallback: if verbatim DB has another translation, use that verbatim text directly
-    if (!verseText && (VERBATIM_OFFLINE_DB[key] || VERBATIM_OFFLINE_DB[rawKey])) {
-      const dbObj = VERBATIM_OFFLINE_DB[key] || VERBATIM_OFFLINE_DB[rawKey];
-      verseText = dbObj[transKey] || dbObj['NKJV'] || dbObj['ESV'] || dbObj['KJV'] || dbObj['WEB'];
-    }
-
+    // Do not fall back to other translations here; return null so the async fetcher can load the real text
     if (!verseText) {
       return null;
     }
@@ -787,7 +937,7 @@ export function getBibleVersesSync(
       book: canonicalName,
       chapter,
       verse: v,
-      text: sanitizeVerseText(verseText),
+      text: sanitizeVerseText(verseText, isConcordanceKJV),
       translation: transKey,
     });
   }
@@ -797,7 +947,7 @@ export function getBibleVersesSync(
 
 /**
  * Async fetcher that downloads exact requested verses when online,
- * saves entire chapters into local storage cache for complete offline use,
+ * saves books into memory cache for complete 0ms offline use,
  * and works 100% offline.
  */
 export async function fetchBibleVersesAsync(
@@ -811,133 +961,118 @@ export async function fetchBibleVersesAsync(
   const finalEndVerse = endVerse && endVerse >= startVerse ? endVerse : startVerse;
   const canonicalName = getCanonicalBookName(bookName);
 
-  // 1. If sync lookup succeeds for all requested verses, return immediately
+  // 1. If sync lookup succeeds for all requested verses, return immediately (0ms!)
   const syncVerses = getBibleVersesSync(canonicalName, chapter, startVerse, finalEndVerse, transKey);
-  if (syncVerses && syncVerses.length === (finalEndVerse - startVerse + 1)) {
+  if (syncVerses && syncVerses.length === finalEndVerse - startVerse + 1) {
     return syncVerses;
+  }
+
+  // 2. Load the whole book into memory cache (bundled local asset)
+  const bookData = await loadBookData(canonicalName, transKey);
+  const isConcordanceKJV = transKey === 'KJV_STRONGS';
+  if (bookData) {
+    const chapterObj = bookData[chapter.toString()];
+    if (chapterObj) {
+      const localResults: BibleVerse[] = [];
+      for (let v = startVerse; v <= finalEndVerse; v++) {
+        const vText = chapterObj[v.toString()];
+        if (vText) {
+          localResults.push({
+            book: canonicalName,
+            chapter,
+            verse: v,
+            text: sanitizeVerseText(vText, isConcordanceKJV),
+            translation: transKey,
+          });
+        }
+      }
+      if (localResults.length === finalEndVerse - startVerse + 1) {
+        return localResults;
+      }
+    }
   }
 
   const bookNum = getBookNumber(canonicalName);
 
-  // 2. Primary Offline/Local Source: Bundled JSON files in /bible/{transKey}/{bookNum}.json
-  try {
-    const localUrl = `/bible/${transKey}/${bookNum}.json`;
-    const response = await fetch(localUrl);
-    if (response.ok) {
-      const bookData = await response.json();
-      const chapterObj = bookData[chapter.toString()];
-      if (chapterObj) {
-        // Cache whole book/chapter into local storage
-        const batchCache: Record<string, string> = {};
-        for (const [ch, verses] of Object.entries(bookData)) {
-          for (const [vNum, vText] of Object.entries(verses as Record<string, string>)) {
-            const cacheKey = `${canonicalName}:${ch}:${vNum}:${transKey}`;
-            batchCache[cacheKey] = sanitizeVerseText(vText);
+  // 3. Online Backup API: bolls.life (Supports NKJV, ESV, KJV, WEB, etc.)
+  if (typeof navigator !== 'undefined' && navigator.onLine) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      const bollsUrl = `https://bolls.life/get-chapter/${transKey}/${bookNum}/${chapter}/`;
+      const response = await fetch(bollsUrl, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (response.ok) {
+        const chapterData = await response.json();
+        if (Array.isArray(chapterData) && chapterData.length > 0) {
+          const fetchedResults: BibleVerse[] = [];
+          for (let v = startVerse; v <= finalEndVerse; v++) {
+            const vObj = chapterData.find((item: any) => item.verse === v);
+            if (vObj && vObj.text) {
+              const cleanText = sanitizeVerseText(vObj.text, isConcordanceKJV);
+              fetchedResults.push({
+                book: canonicalName,
+                chapter,
+                verse: v,
+                text: cleanText,
+                translation: transKey,
+              });
+            }
           }
-        }
-        saveBatchToStoredCache(batchCache);
-
-        const localResults: BibleVerse[] = [];
-        for (let v = startVerse; v <= finalEndVerse; v++) {
-          const vText = chapterObj[v.toString()];
-          if (vText) {
-            localResults.push({
-              book: canonicalName,
-              chapter,
-              verse: v,
-              text: sanitizeVerseText(vText),
-              translation: transKey,
-            });
+          if (fetchedResults.length === finalEndVerse - startVerse + 1) {
+            return fetchedResults;
           }
-        }
-        if (localResults.length === (finalEndVerse - startVerse + 1)) {
-          return localResults;
         }
       }
+    } catch (err) {
+      console.warn('bolls.life fetch failed, trying bible-api.com fallback:', err);
     }
-  } catch (err) {
-    console.warn('Local bundle lookup failed, falling back:', err);
-  }
 
-  // 3. Online Backup API: bolls.life (Supports NKJV, ESV, KJV, WEB)
-  try {
-    const bollsUrl = `https://bolls.life/get-chapter/${transKey}/${bookNum}/${chapter}/`;
-    const response = await fetch(bollsUrl);
-    if (response.ok) {
-      const chapterData = await response.json();
-      if (Array.isArray(chapterData) && chapterData.length > 0) {
-        // Cache entire chapter for full offline availability
-        const batchCache: Record<string, string> = {};
-        for (const item of chapterData) {
-          if (item && item.verse && item.text) {
-            const cleanText = sanitizeVerseText(item.text);
-            const cacheKey = `${canonicalName}:${chapter}:${item.verse}:${transKey}`;
-            batchCache[cacheKey] = cleanText;
-          }
-        }
-        saveBatchToStoredCache(batchCache);
-
-        const fetchedResults: BibleVerse[] = [];
-        for (let v = startVerse; v <= finalEndVerse; v++) {
-          const vObj = chapterData.find((item: any) => item.verse === v);
-          if (vObj && vObj.text) {
-            const cleanText = sanitizeVerseText(vObj.text);
-            fetchedResults.push({
+    // 4. Secondary Online API: bible-api.com
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      const isFullChapter =
+        startVerse === 1 &&
+        endVerse !== undefined &&
+        endVerse === getMaxVersesForChapter(canonicalName, chapter);
+      const refStr = isFullChapter
+        ? `${canonicalName} ${chapter}`
+        : `${canonicalName} ${chapter}:${startVerse}${
+            endVerse && endVerse !== startVerse ? `-${endVerse}` : ''
+          }`;
+      const apiTrans = transKey === 'WEB' ? 'web' : 'kjv';
+      const response = await fetch(
+        `https://bible-api.com/${encodeURIComponent(refStr)}?translation=${apiTrans}`,
+        { signal: controller.signal }
+      );
+      clearTimeout(timeoutId);
+      if (response.ok) {
+        const data = await response.json();
+        if (data && data.verses && Array.isArray(data.verses)) {
+          const fetchedVerses: BibleVerse[] = data.verses.map((vItem: any) => {
+            const vNum = vItem.verse;
+            const cleanText = sanitizeVerseText(vItem.text || '');
+            return {
               book: canonicalName,
               chapter,
-              verse: v,
+              verse: vNum,
               text: cleanText,
               translation: transKey,
-            });
+            };
+          });
+
+          if (fetchedVerses.length > 0) {
+            return fetchedVerses;
           }
         }
-        if (fetchedResults.length === (finalEndVerse - startVerse + 1)) {
-          return fetchedResults;
-        }
       }
+    } catch (err) {
+      console.warn('bible-api.com fetch failed:', err);
     }
-  } catch (err) {
-    console.warn('bolls.life fetch failed, trying bible-api.com fallback:', err);
   }
 
-  // 3. Secondary Online API: bible-api.com
-  try {
-    const isFullChapter = startVerse === 1 && endVerse !== undefined && endVerse === getMaxVersesForChapter(canonicalName, chapter);
-    const refStr = isFullChapter
-      ? `${canonicalName} ${chapter}`
-      : `${canonicalName} ${chapter}:${startVerse}${endVerse && endVerse !== startVerse ? `-${endVerse}` : ''}`;
-    const apiTrans = transKey === 'WEB' ? 'web' : 'kjv';
-    const response = await fetch(
-      `https://bible-api.com/${encodeURIComponent(refStr)}?translation=${apiTrans}`
-    );
-    if (response.ok) {
-      const data = await response.json();
-      if (data && data.verses && Array.isArray(data.verses)) {
-        const fetchedVerses: BibleVerse[] = data.verses.map((vItem: any) => {
-          const vNum = vItem.verse;
-          const cleanText = sanitizeVerseText(vItem.text || '');
-          const cacheKey = `${canonicalName}:${chapter}:${vNum}:${transKey}`;
-          saveToStoredCache(cacheKey, cleanText);
-
-          return {
-            book: canonicalName,
-            chapter,
-            verse: vNum,
-            text: cleanText,
-            translation: transKey,
-          };
-        });
-
-        if (fetchedVerses.length > 0) {
-          return fetchedVerses;
-        }
-      }
-    }
-  } catch (err) {
-    console.warn('bible-api.com fetch failed:', err);
-  }
-
-  // 4. Offline Fallback:
+  // 5. Offline Fallback:
   // Use exact verbatim text available in DB or cache, or clean verse text
   const fallbackVerses: BibleVerse[] = [];
   const stored = getStoredCache();
@@ -947,11 +1082,15 @@ export async function fetchBibleVersesAsync(
     const rawKey = `${bookName}:${chapter}:${v}`;
     const cacheKey = `${key}:${transKey}`;
 
-    let text = VERBATIM_OFFLINE_DB[key]?.[transKey] || VERBATIM_OFFLINE_DB[rawKey]?.[transKey] || stored[cacheKey];
+    let text =
+      VERBATIM_OFFLINE_DB[key]?.[transKey] ||
+      VERBATIM_OFFLINE_DB[rawKey]?.[transKey] ||
+      stored[cacheKey];
 
     if (!text && (VERBATIM_OFFLINE_DB[key] || VERBATIM_OFFLINE_DB[rawKey])) {
       const dbObj = VERBATIM_OFFLINE_DB[key] || VERBATIM_OFFLINE_DB[rawKey];
-      text = dbObj[transKey] || dbObj['NKJV'] || dbObj['ESV'] || dbObj['KJV'] || dbObj['WEB'];
+      text =
+        dbObj[transKey] || dbObj['NKJV'] || dbObj['ESV'] || dbObj['KJV'] || dbObj['WEB'];
     }
 
     if (!text) {
@@ -971,44 +1110,35 @@ export async function fetchBibleVersesAsync(
 }
 
 /**
- * Background cache warmer: pre-loads key books and chapters into LocalStorage
- * directly from local bundled assets so everything is ready offline instantly!
+ * Background cache warmer: pre-loads key books into memory cache
+ * in background idle time so main UI thread never suffers startup latency!
  */
-export async function warmupOfflineBibleCache() {
+export async function warmupOfflineBibleCache(targetTranslation?: string) {
   if (typeof window === 'undefined') return;
 
-  const keyBookNums = [1, 5, 19, 23, 40, 43, 45, 66]; // Gen, Deut, Psa, Isa, Matt, John, Rom, Rev
-  const translations = ['NKJV', 'ESV', 'KJV', 'WEB'];
+  const runWarmup = () => {
+    // Only warm up the active translation first, then default translations quietly
+    const keyBooks = ['Matthew', 'Genesis', 'Psalms'];
+    const active = targetTranslation || 'KJV_STRONGS';
 
-  for (const bookNum of keyBookNums) {
-    const bookObj = BIBLE_BOOKS[bookNum - 1];
-    if (!bookObj) continue;
-    const canonicalName = bookObj.name;
+    // Warm up active translation books with small delays so startup is butter smooth
+    keyBooks.forEach((book, index) => {
+      setTimeout(() => {
+        loadBookData(book, active).catch(() => {});
+      }, index * 120);
+    });
+  };
 
-    for (const trans of translations) {
-      try {
-        const url = `/bible/${trans}/${bookNum}.json`;
-        const res = await fetch(url);
-        if (res.ok) {
-          const bookData = await res.json();
-          const batch: Record<string, string> = {};
-          for (const [ch, verses] of Object.entries(bookData)) {
-            for (const [vNum, vText] of Object.entries(verses as Record<string, string>)) {
-              const key = `${canonicalName}:${ch}:${vNum}:${trans}`;
-              batch[key] = sanitizeVerseText(vText);
-            }
-          }
-          saveBatchToStoredCache(batch);
-        }
-      } catch {
-        // Ignore warm-up errors silently
-      }
-    }
+  if ('requestIdleCallback' in window) {
+    (window as any).requestIdleCallback(runWarmup, { timeout: 3000 });
+  } else {
+    setTimeout(runWarmup, 800);
   }
 }
 
 export const TRANSLATIONS = [
   { id: 'KJV', name: 'King James Version (KJV)' },
+  { id: 'KJV_STRONGS', name: 'Concordance (KJV)' },
   { id: 'NKJV', name: 'New King James Version (NKJV)' },
   { id: 'ESV', name: 'English Standard Version (ESV)' },
   { id: 'WEB', name: 'World English Bible (WEB)' },

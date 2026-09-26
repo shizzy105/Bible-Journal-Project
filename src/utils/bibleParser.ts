@@ -72,6 +72,27 @@ export const BOOK_SHORT_NAMES: Record<string, string> = {
   Revelation: 'Rev',
 };
 
+export function formatVerseRanges(verses: number[]): string {
+  if (!verses || verses.length === 0) return '';
+  const sorted = Array.from(new Set(verses)).sort((a, b) => a - b);
+  const ranges: string[] = [];
+  let rangeStart = sorted[0];
+  let rangeEnd = sorted[0];
+
+  for (let i = 1; i < sorted.length; i++) {
+    const current = sorted[i];
+    if (current === rangeEnd + 1) {
+      rangeEnd = current;
+    } else {
+      ranges.push(rangeStart === rangeEnd ? `${rangeStart}` : `${rangeStart}-${rangeEnd}`);
+      rangeStart = current;
+      rangeEnd = current;
+    }
+  }
+  ranges.push(rangeStart === rangeEnd ? `${rangeStart}` : `${rangeStart}-${rangeEnd}`);
+  return ranges.join(', ');
+}
+
 export function formatRefMatch(match: BibleReferenceMatch, format?: RefFormat): string {
   const targetFormat = format || getStoredRefFormat();
   const bookDisp = targetFormat === 'short'
@@ -80,7 +101,9 @@ export function formatRefMatch(match: BibleReferenceMatch, format?: RefFormat): 
   if (match.isFullChapter) {
     return `${bookDisp} ${match.chapter}`;
   }
-  const verseStr = match.endVerse && match.endVerse !== match.startVerse
+  const verseStr = match.verseList && match.verseList.length > 0
+    ? formatVerseRanges(match.verseList)
+    : match.endVerse && match.endVerse !== match.startVerse
     ? `${match.startVerse}-${match.endVerse}`
     : `${match.startVerse}`;
   return `${bookDisp} ${match.chapter} v ${verseStr}`;
@@ -98,16 +121,56 @@ export function formatRefString(refText: string, format?: RefFormat): string {
 // Build alias map: lowercase abbreviation -> Book Object
 const ALIAS_TO_BOOK_MAP = new Map<string, typeof BIBLE_BOOKS[0]>();
 
-// Populate alias map
+function registerBookAlias(alias: string, book: typeof BIBLE_BOOKS[0]) {
+  if (!alias) return;
+  const clean = alias.toLowerCase().trim();
+  if (clean) {
+    ALIAS_TO_BOOK_MAP.set(clean, book);
+  }
+}
+
+// Populate alias map with complete names, IDs, abbreviations, short names, and numbered variants
 BIBLE_BOOKS.forEach((book) => {
-  // Full name
-  ALIAS_TO_BOOK_MAP.set(book.name.toLowerCase(), book);
-  // Id
-  ALIAS_TO_BOOK_MAP.set(book.id.toLowerCase(), book);
-  // Abbreviations
-  book.abbreviations.forEach((abbr) => {
-    ALIAS_TO_BOOK_MAP.set(abbr.toLowerCase(), book);
-  });
+  registerBookAlias(book.name, book);
+  registerBookAlias(book.id, book);
+  book.abbreviations.forEach((abbr) => registerBookAlias(abbr, book));
+  
+  if (BOOK_SHORT_NAMES[book.name]) {
+    registerBookAlias(BOOK_SHORT_NAMES[book.name], book);
+  }
+
+  // Handle all numbered books (1, 2, 3) e.g., 1 Kings, 2 Kings, 1 Sam, 2 Sam, etc.
+  const numMatch = book.name.match(/^([123])\s+(.+)$/);
+  if (numMatch) {
+    const num = numMatch[1];
+    const rest = numMatch[2];
+    const ord = num === '1' ? '1st' : num === '2' ? '2nd' : '3rd';
+    const word = num === '1' ? 'first' : num === '2' ? 'second' : 'third';
+    const roman = num === '1' ? 'i' : num === '2' ? 'ii' : 'iii';
+
+    registerBookAlias(`${num}${rest}`, book);
+    registerBookAlias(`${num} ${rest}`, book);
+    registerBookAlias(`${ord} ${rest}`, book);
+    registerBookAlias(`${ord}${rest}`, book);
+    registerBookAlias(`${word} ${rest}`, book);
+    registerBookAlias(`${word}${rest}`, book);
+    registerBookAlias(`${roman} ${rest}`, book);
+    registerBookAlias(`${roman}${rest}`, book);
+
+    const short = BOOK_SHORT_NAMES[book.name];
+    if (short) {
+      const shortMatch = short.match(/^([123])\s+(.+)$/);
+      if (shortMatch) {
+        const sRest = shortMatch[2];
+        registerBookAlias(`${num}${sRest}`, book);
+        registerBookAlias(`${num} ${sRest}`, book);
+        registerBookAlias(`${ord} ${sRest}`, book);
+        registerBookAlias(`${ord}${sRest}`, book);
+        registerBookAlias(`${word} ${sRest}`, book);
+        registerBookAlias(`${roman} ${sRest}`, book);
+      }
+    }
+  }
 });
 
 // Get all keys sorted by length descending so longest matches first
@@ -123,15 +186,15 @@ function escapeRegExp(str: string) {
 const BOOK_PATTERN = SORTED_BOOK_KEYS.map((key) => escapeRegExp(key)).join('|');
 
 // Regex matches patterns like:
-// "Matt 5:7", "Matthew 5 v 7", "Matt 5 v 7-20", "1 Cor 13:4-7", "Jn 3:16", "Romans 8:28-30", "Daniel 5", "Dan 5", "Genesis 1"
+// "Matt 5:7", "Matthew 5 v 7", "Matt 5 v 7-20", "Esther 1 v 2, 4", "Esther 1 v 2,4", "1 Cor 13:4-7, 13", "Jn 3:16", "Romans 8:28-30", "Daniel 5", "Dan 5", "Genesis 1"
 const BIBLE_REF_REGEX = new RegExp(
-  `\\b(${BOOK_PATTERN})\\b[\\s.]*(\\d{1,3})(?:(?:[\\s]*(?:[:.]|v\\b|ver\\b|verse\\b)[\\s]*|[\\s]+)(\\d{1,3})(?:[\\s]*(?:[-–—]|to)[\\s]*(\\d{1,5}))?)?`,
+  `\\b(${BOOK_PATTERN})\\b[\\s.]*(\\d{1,3})(?:(?:[\\s]*(?:[:.]|v\\b|ver\\b|verse\\b)[\\s]*|[\\s]+)(\\d{1,3}(?:[\\s]*(?:[-–—]|to)[\\s]*\\d{1,3})?(?:[\\s]*,[\\s]*\\d{1,3}(?:[\\s]*(?:[-–—]|to)[\\s]*\\d{1,3})?)*))?`,
   'gi'
 );
 
 /**
  * Scans text and extracts all valid Bible references with strict chapter/verse bounds.
- * Supports both full chapter references (e.g. "Daniel 5", "John 3") and verse references.
+ * Supports full chapter references, verse ranges, and multiple non-continuous verses (e.g. "Esther 1 v 2, 4").
  */
 export function parseBibleReferences(text: string): BibleReferenceMatch[] {
   if (!text || typeof text !== 'string') return [];
@@ -145,8 +208,7 @@ export function parseBibleReferences(text: string): BibleReferenceMatch[] {
   while ((match = BIBLE_REF_REGEX.exec(text)) !== null) {
     const rawBookMatch = match[1];
     const chapterStr = match[2];
-    const startVerseStr = match[3];
-    const endVerseStr = match[4];
+    const versesStr = match[3];
 
     const bookObj = ALIAS_TO_BOOK_MAP.get(rawBookMatch.toLowerCase());
 
@@ -159,17 +221,50 @@ export function parseBibleReferences(text: string): BibleReferenceMatch[] {
         continue;
       }
 
-      if (startVerseStr !== undefined) {
-        const startVerse = parseInt(startVerseStr, 10);
-        const endVerse = endVerseStr ? parseInt(endVerseStr, 10) : undefined;
+      if (versesStr !== undefined) {
+        // Parse comma-separated verse segments or ranges, e.g. "2, 4" or "2,4" or "7-20" or "2-3, 5, 8"
+        const segments = versesStr.split(',');
+        const verseList: number[] = [];
+        let allValid = true;
 
-        // Strict Chapter & Verse Bounds Checking
-        const isStartVerseValid = startVerse > 0 && startVerse <= maxVerses;
-        const isEndVerseValid =
-          endVerse === undefined ||
-          (endVerse >= startVerse && endVerse <= maxVerses && endVerse - startVerse <= 50);
+        for (const seg of segments) {
+          const trimmedSeg = seg.trim();
+          if (!trimmedSeg) {
+            allValid = false;
+            break;
+          }
+          const rangeMatch = trimmedSeg.match(/^(\d{1,3})(?:[\s]*(?:[-–—]|to)[\s]*(\d{1,3}))?$/);
+          if (!rangeMatch) {
+            allValid = false;
+            break;
+          }
+          const s = parseInt(rangeMatch[1], 10);
+          const e = rangeMatch[2] ? parseInt(rangeMatch[2], 10) : undefined;
 
-        if (isStartVerseValid && isEndVerseValid) {
+          if (e !== undefined) {
+            if (s > 0 && e >= s && e <= maxVerses && e - s <= 50) {
+              for (let i = s; i <= e; i++) {
+                verseList.push(i);
+              }
+            } else {
+              allValid = false;
+              break;
+            }
+          } else {
+            if (s > 0 && s <= maxVerses) {
+              verseList.push(s);
+            } else {
+              allValid = false;
+              break;
+            }
+          }
+        }
+
+        if (allValid && verseList.length > 0) {
+          const sortedVerses = Array.from(new Set(verseList)).sort((a, b) => a - b);
+          const startVerse = sortedVerses[0];
+          const endVerse = sortedVerses[sortedVerses.length - 1];
+
           matches.push({
             fullMatch: match[0],
             bookName: bookObj.name,
@@ -177,6 +272,7 @@ export function parseBibleReferences(text: string): BibleReferenceMatch[] {
             chapter,
             startVerse,
             endVerse,
+            verseList: sortedVerses,
             startIndex: match.index,
             endIndex: match.index + match[0].length,
             isFullChapter: false,

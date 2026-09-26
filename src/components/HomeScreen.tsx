@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   BookOpen,
   Search,
@@ -7,6 +7,7 @@ import {
   Moon,
   Sun,
   Pin,
+  PinOff,
   Trash2,
   Mic,
   Edit3,
@@ -30,6 +31,7 @@ interface HomeScreenProps {
   onOpenSearch: () => void;
   onOpenSettings: () => void;
   onDeleteEntry: (entryId: string) => void;
+  onTogglePinEntry?: (entryId: string) => void;
   darkMode: boolean;
   onToggleDarkMode: () => void;
   currentTheme?: AppTheme;
@@ -43,11 +45,40 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenSearch,
   onOpenSettings,
   onDeleteEntry,
+  onTogglePinEntry,
   darkMode,
   onToggleDarkMode,
   currentTheme,
 }) => {
   const [entryToDelete, setEntryToDelete] = useState<JournalEntry | null>(null);
+  const [heldEntry, setHeldEntry] = useState<JournalEntry | null>(null);
+
+  // Long press refs and timing
+  const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
+  const isLongPressTriggeredRef = useRef<boolean>(false);
+
+  const startHold = (entry: JournalEntry, x: number, y: number) => {
+    touchStartPosRef.current = { x, y };
+    isLongPressTriggeredRef.current = false;
+    if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+    holdTimerRef.current = setTimeout(() => {
+      isLongPressTriggeredRef.current = true;
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try {
+          navigator.vibrate(40);
+        } catch {}
+      }
+      setHeldEntry(entry);
+    }, 450);
+  };
+
+  const cancelHold = () => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+  };
 
   const isPureBlack =
     currentTheme === 'black' ||
@@ -203,8 +234,55 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               return (
                 <div
                   key={entry.id}
-                  onClick={() => onSelectEntry(entry)}
-                  className={`p-4 rounded-3xl border transition-all cursor-pointer relative flex flex-col justify-between group ${cardClass}`}
+                  onTouchStart={(e) => {
+                    if (e.touches.length === 1) {
+                      startHold(entry, e.touches[0].clientX, e.touches[0].clientY);
+                    }
+                  }}
+                  onTouchMove={(e) => {
+                    if (touchStartPosRef.current && e.touches.length === 1) {
+                      const dist = Math.hypot(
+                        e.touches[0].clientX - touchStartPosRef.current.x,
+                        e.touches[0].clientY - touchStartPosRef.current.y
+                      );
+                      if (dist > 10) {
+                        cancelHold();
+                      }
+                    }
+                  }}
+                  onTouchEnd={cancelHold}
+                  onTouchCancel={cancelHold}
+                  onMouseDown={(e) => {
+                    if (e.button === 0) {
+                      startHold(entry, e.clientX, e.clientY);
+                    }
+                  }}
+                  onMouseMove={(e) => {
+                    if (touchStartPosRef.current) {
+                      const dist = Math.hypot(
+                        e.clientX - touchStartPosRef.current.x,
+                        e.clientY - touchStartPosRef.current.y
+                      );
+                      if (dist > 10) {
+                        cancelHold();
+                      }
+                    }
+                  }}
+                  onMouseUp={cancelHold}
+                  onMouseLeave={cancelHold}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    cancelHold();
+                    setHeldEntry(entry);
+                  }}
+                  onClick={() => {
+                    if (isLongPressTriggeredRef.current) {
+                      isLongPressTriggeredRef.current = false;
+                      return;
+                    }
+                    onSelectEntry(entry);
+                  }}
+                  className={`p-4 rounded-3xl border transition-all cursor-pointer relative flex flex-col justify-between group select-none ${cardClass}`}
                 >
                   <div>
                     {/* Entry Header */}
@@ -286,6 +364,126 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       >
         <Plus className="w-7 h-7 stroke-[3]" />
       </button>
+
+      {/* Hold Down Options Menu (Pin / Delete) */}
+      {heldEntry && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-fadeIn"
+          onClick={() => setHeldEntry(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className={`w-full max-w-sm p-5 rounded-t-3xl sm:rounded-3xl border shadow-2xl animate-slideUp sm:animate-scaleIn ${
+              isPureBlack
+                ? 'bg-neutral-950 border-neutral-900 text-white'
+                : isNavy
+                ? 'bg-[#1c2541] border-[#3a506b] text-white'
+                : darkMode
+                ? 'bg-neutral-900 border-neutral-800 text-white'
+                : 'bg-white border-stone-200 text-stone-900'
+            }`}
+          >
+            {/* Note Preview Info */}
+            <div className="mb-4 pb-3 border-b border-stone-200 dark:border-stone-800/80">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
+                Note Options
+              </span>
+              <h3 className="text-base font-extrabold truncate mt-0.5">
+                {heldEntry.title || 'Untitled Note'}
+              </h3>
+              <p className="text-xs text-stone-500 dark:text-stone-400 truncate mt-0.5">
+                {formatDateDDMMYYYY(heldEntry.dateString)}
+              </p>
+            </div>
+
+            {/* Actions List */}
+            <div className="flex flex-col gap-2">
+              {/* Pin / Unpin Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  const entryToPin = heldEntry;
+                  setHeldEntry(null);
+                  onTogglePinEntry?.(entryToPin.id);
+                }}
+                className={`w-full flex items-center gap-3.5 p-3 rounded-2xl font-bold text-sm transition-colors text-left ${
+                  isPureBlack
+                    ? 'hover:bg-neutral-900 text-stone-200'
+                    : isNavy
+                    ? 'hover:bg-[#253256] text-[#e0e1dd]'
+                    : darkMode
+                    ? 'hover:bg-neutral-800 text-neutral-200'
+                    : 'hover:bg-stone-100 text-stone-800'
+                }`}
+              >
+                <div
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                    heldEntry.pinned
+                      ? 'bg-amber-500/10 text-amber-500'
+                      : 'bg-red-500/10 text-red-500'
+                  }`}
+                >
+                  {heldEntry.pinned ? (
+                    <PinOff className="w-5 h-5" />
+                  ) : (
+                    <Pin className="w-5 h-5 fill-current" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold">
+                    {heldEntry.pinned ? 'Unpin Note' : 'Pin to Top'}
+                  </div>
+                  <div className="text-xs opacity-60 font-normal">
+                    {heldEntry.pinned
+                      ? 'Remove from top of list'
+                      : 'Keep at the top of your notes'}
+                  </div>
+                </div>
+              </button>
+
+              {/* Delete Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  const entryToDeleteRef = heldEntry;
+                  setHeldEntry(null);
+                  setEntryToDelete(entryToDeleteRef);
+                }}
+                className="w-full flex items-center gap-3.5 p-3 rounded-2xl font-bold text-sm transition-colors text-left hover:bg-red-500/10 text-red-500"
+              >
+                <div className="w-10 h-10 rounded-xl bg-red-500/10 text-red-500 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold">Delete Note</div>
+                  <div className="text-xs opacity-75 font-normal">
+                    Move to Recently Deleted
+                  </div>
+                </div>
+              </button>
+            </div>
+
+            {/* Cancel Button */}
+            <div className="mt-4 pt-2 border-t border-stone-200 dark:border-stone-800/80">
+              <button
+                type="button"
+                onClick={() => setHeldEntry(null)}
+                className={`w-full py-2.5 rounded-xl text-xs font-bold transition-colors ${
+                  isPureBlack
+                    ? 'bg-neutral-900 hover:bg-neutral-800 text-stone-300'
+                    : isNavy
+                    ? 'bg-[#253256] hover:bg-[#2e3e6b] text-[#e0e1dd]'
+                    : darkMode
+                    ? 'bg-neutral-800 hover:bg-neutral-700 text-stone-300'
+                    : 'bg-stone-100 hover:bg-stone-200 text-stone-700'
+                }`}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* In-App Delete Confirmation Modal */}
       {entryToDelete && (

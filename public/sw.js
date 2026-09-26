@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bible-journal-v1';
+const CACHE_NAME = 'bible-journal-v2';
 
 const STATIC_PRECACHE = [
   '/',
@@ -6,7 +6,14 @@ const STATIC_PRECACHE = [
   '/app-icon.svg',
   '/manifest.json',
   '/strongs/hebrew.json',
-  '/strongs/greek.json'
+  '/strongs/greek.json',
+  '/bible/KJV/40.json', // Matthew
+  '/bible/KJV/1.json',  // Genesis
+  '/bible/KJV/19.json', // Psalms
+  '/bible/KJV/43.json', // John
+  '/bible/KJV/45.json', // Romans
+  '/bible/NKJV/40.json',
+  '/bible/ESV/40.json'
 ];
 
 // Install event: Precache core assets & activate immediately

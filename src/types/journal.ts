@@ -71,6 +71,7 @@ export interface BibleReferenceMatch {
   startIndex: number;
   endIndex: number;
   isFullChapter?: boolean;
+  verseList?: number[];
 }
 
 export interface BibleVerse {

@@ -19,9 +19,11 @@ import { SettingsScreen } from './components/SettingsScreen';
 import { RecentlyDeletedScreen } from './components/RecentlyDeletedScreen';
 import { SearchOverlay } from './components/SearchOverlay';
 import { AndroidCodeExportModal } from './components/AndroidCodeExportModal';
+import { SplashScreen } from './components/SplashScreen';
 import { warmupOfflineBibleCache } from './data/bibleData';
 
 export default function App() {
+  const [showSplash, setShowSplash] = useState<boolean>(true);
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [activeScreen, setActiveScreen] = useState<'home' | 'editor' | 'calendar' | 'settings' | 'recently-deleted'>('home');
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
@@ -317,6 +319,18 @@ export default function App() {
     }
   };
 
+  const handleTogglePinEntry = (entryId: string) => {
+    const entry = entries.find((e) => e.id === entryId);
+    if (!entry) return;
+    const updatedEntry: JournalEntry = {
+      ...entry,
+      pinned: !entry.pinned,
+      updatedAt: new Date().toISOString(),
+    };
+    const updatedList = saveSingleEntry(updatedEntry);
+    setEntries(updatedList);
+  };
+
   const handleRestoreFromTrash = (restoredEntry: JournalEntry) => {
     const all = getStoredEntries();
     setEntries(all);
@@ -349,6 +363,7 @@ export default function App() {
             }}
             onOpenSettings={() => navigateToScreen('settings')}
             onDeleteEntry={handleDeleteEntry}
+            onTogglePinEntry={handleTogglePinEntry}
             darkMode={effectiveDarkMode}
             onToggleDarkMode={handleToggleDarkMode}
             currentTheme={currentTheme}
@@ -420,6 +435,11 @@ export default function App() {
 
         {showAndroidCode && (
           <AndroidCodeExportModal onClose={() => setShowAndroidCode(false)} />
+        )}
+
+        {/* Cold Start / Launch Splash Screen (1.2s WhatsApp-style branding) */}
+        {showSplash && (
+          <SplashScreen durationMs={1200} onFinish={() => setShowSplash(false)} />
         )}
 
         {/* Android Toast for "Press back again to exit" */}

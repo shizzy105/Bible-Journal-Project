@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Copy, Check, PlusCircle, Loader2, BookOpen, Languages, Sparkles } from 'lucide-react';
+import { X, Copy, Check, PlusCircle, Loader2, BookOpen, Languages, Sparkles, Search } from 'lucide-react';
 import { StrongsEntry } from '../types/journal';
 import { fetchStrongsEntryAsync, getStrongsEntrySync } from '../data/strongsData';
 
@@ -7,16 +7,26 @@ interface StrongsConcordancePopupProps {
   strongsId: string;
   onClose: () => void;
   onInsertIntoNote?: (formattedText: string) => void;
+  onViewUsage?: (strongsId: string, lemma?: string) => void;
 }
 
 export const StrongsConcordancePopup: React.FC<StrongsConcordancePopupProps> = ({
   strongsId,
   onClose,
   onInsertIntoNote,
+  onViewUsage,
 }) => {
   const [entry, setEntry] = useState<StrongsEntry | null>(() => getStrongsEntrySync(strongsId));
   const [loading, setLoading] = useState<boolean>(!entry);
   const [copied, setCopied] = useState<boolean>(false);
+
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -52,17 +62,17 @@ export const StrongsConcordancePopup: React.FC<StrongsConcordancePopupProps> = (
   };
 
   const handleInsert = () => {
-    if (!entry || !onInsertIntoNote) return;
-    const kjvText = entry.kjv_usage || entry.kjv_def;
-    const formattedInsert = `\n> **${entry.id}: ${entry.lemma}** (${entry.translit}${entry.pron ? `, "${entry.pron}"` : ''}) — *${entry.language}*\n> ${entry.strongs_def}${kjvText ? `\n> *KJV Usage:* ${kjvText}` : ''}\n`;
-    onInsertIntoNote(formattedInsert);
+    if (!onInsertIntoNote) return;
+    const targetId = (entry?.id || strongsId).toUpperCase().trim();
+    if (!targetId) return;
+    onInsertIntoNote(targetId);
     onClose();
   };
 
   const isHebrew = entry?.language === 'Hebrew' || entry?.language === 'Aramaic' || strongsId.toUpperCase().startsWith('H');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-fadeIn">
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-fadeIn">
       {/* Backdrop click to dismiss */}
       <div className="absolute inset-0" onClick={onClose} />
 
@@ -133,7 +143,7 @@ export const StrongsConcordancePopup: React.FC<StrongsConcordancePopupProps> = (
         </div>
 
         {/* Definition and Details Content Body */}
-        <div className="p-5 overflow-y-auto space-y-4 font-sans text-stone-200 text-sm leading-relaxed min-h-[140px]">
+        <div className="p-5 overflow-y-auto space-y-4 font-sans text-stone-200 text-sm leading-relaxed min-h-[140px] overscroll-contain">
           {loading && !entry ? (
             <div className="flex flex-col items-center justify-center py-8 text-stone-400 space-y-2">
               <Loader2 className="w-6 h-6 animate-spin text-red-500" />
@@ -215,13 +225,32 @@ export const StrongsConcordancePopup: React.FC<StrongsConcordancePopupProps> = (
             </button>
           )}
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-semibold"
-          >
-            Close
-          </button>
+          {onViewUsage ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (entry) {
+                  onViewUsage(strongsId, entry.lemma);
+                } else {
+                  onViewUsage(strongsId);
+                }
+              }}
+              disabled={!entry}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-xs font-semibold shadow-md transition-colors"
+              title="View all biblical occurrences in KJV#"
+            >
+              <Search className="w-4 h-4" />
+              <span>View Usage</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-semibold"
+            >
+              Close
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -358,37 +358,67 @@ export type RefFormat = 'long' | 'short';
 const STORAGE_KEY_REF_FORMAT = 'bible_journal_ref_format_v1';
 
 export function getStoredRefFormat(): RefFormat {
-  const val = localStorage.getItem(STORAGE_KEY_REF_FORMAT);
-  return val === 'short' ? 'short' : 'long';
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return 'long';
+  try {
+    const val = localStorage.getItem(STORAGE_KEY_REF_FORMAT);
+    return val === 'short' ? 'short' : 'long';
+  } catch {
+    return 'long';
+  }
 }
 
 export function setStoredRefFormat(format: RefFormat): void {
-  localStorage.setItem(STORAGE_KEY_REF_FORMAT, format);
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY_REF_FORMAT, format);
+  } catch {
+    // ignore
+  }
 }
 
 export function getStoredTheme(): AppTheme {
-  const saved = localStorage.getItem(STORAGE_KEY_THEME);
-  if (saved === 'sepia') {
-    // Seamlessly migrate legacy sepia preference to pure black
-    return 'black';
-  }
-  if (saved && ['system', 'light', 'dark', 'black', 'navy'].includes(saved)) {
-    return saved as AppTheme;
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return 'system';
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_THEME);
+    if (saved === 'sepia') {
+      // Seamlessly migrate legacy sepia preference to pure black
+      return 'black';
+    }
+    if (saved && ['system', 'light', 'dark', 'black', 'navy'].includes(saved)) {
+      return saved as AppTheme;
+    }
+  } catch {
+    // ignore
   }
   // Default to system auto
   return 'system';
 }
 
 export function setStoredTheme(theme: AppTheme): void {
-  localStorage.setItem(STORAGE_KEY_THEME, theme);
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY_THEME, theme);
+  } catch {
+    // ignore
+  }
 }
 
 export function getStoredTranslation(): string {
-  return localStorage.getItem(STORAGE_KEY_TRANSLATION) || 'NKJV';
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return 'KJV_STRONGS';
+  try {
+    return localStorage.getItem(STORAGE_KEY_TRANSLATION) || 'KJV_STRONGS';
+  } catch {
+    return 'KJV_STRONGS';
+  }
 }
 
 export function setStoredTranslation(trans: string): void {
-  localStorage.setItem(STORAGE_KEY_TRANSLATION, trans);
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY_TRANSLATION, trans);
+  } catch {
+    // ignore
+  }
 }
 
 const STORAGE_KEY_DOWNLOADED_TRANS = 'bible_journal_downloaded_translations_v1';
@@ -399,12 +429,18 @@ export function getEnabledTranslations(): string[] {
     const raw = localStorage.getItem(STORAGE_KEY_ENABLED_VERSIONS);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Ensure KJV_STRONGS is included in enabled list if user had previous storage
+        if (!parsed.includes('KJV_STRONGS')) {
+          parsed.push('KJV_STRONGS');
+        }
+        return parsed;
+      }
     }
   } catch {
     // fallback
   }
-  return ['KJV']; // KJV is ON by default
+  return ['KJV', 'KJV_STRONGS', 'ESV']; // KJV, Concordance (KJV), and ESV are ON by default
 }
 
 export function setEnabledTranslations(list: string[]): void {
@@ -418,10 +454,19 @@ export function setEnabledTranslations(list: string[]): void {
 export function getDownloadedTranslations(): string[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_DOWNLOADED_TRANS);
-    return raw ? JSON.parse(raw) : ['KJV', 'WEB', 'NKJV'];
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        if (!parsed.includes('KJV_STRONGS')) {
+          parsed.push('KJV_STRONGS');
+        }
+        return parsed;
+      }
+    }
   } catch {
-    return ['KJV', 'WEB', 'NKJV'];
+    // fallback
   }
+  return ['KJV', 'KJV_STRONGS', 'ESV', 'WEB', 'NKJV', 'NIV', 'NLT'];
 }
 
 export function setDownloadedTranslations(list: string[]): void {
@@ -429,6 +474,32 @@ export function setDownloadedTranslations(list: string[]): void {
     localStorage.setItem(STORAGE_KEY_DOWNLOADED_TRANS, JSON.stringify(list));
   } catch (err) {
     console.warn('Failed to save downloaded translations:', err);
+  }
+}
+
+const STORAGE_KEY_LAST_READ_BOOK = 'bible_journal_last_read_book_v1';
+const STORAGE_KEY_LAST_READ_CHAPTER = 'bible_journal_last_read_chapter_v1';
+
+export function getStoredBiblePosition(): { book: string; chapter: number } {
+  try {
+    const book = localStorage.getItem(STORAGE_KEY_LAST_READ_BOOK);
+    const chapterRaw = localStorage.getItem(STORAGE_KEY_LAST_READ_CHAPTER);
+    const chapter = chapterRaw ? parseInt(chapterRaw, 10) : 1;
+    if (book) {
+      return { book, chapter: Number.isNaN(chapter) || chapter < 1 ? 1 : chapter };
+    }
+  } catch {
+    // fallback
+  }
+  return { book: 'Matthew', chapter: 5 };
+}
+
+export function setStoredBiblePosition(book: string, chapter: number): void {
+  try {
+    localStorage.setItem(STORAGE_KEY_LAST_READ_BOOK, book);
+    localStorage.setItem(STORAGE_KEY_LAST_READ_CHAPTER, chapter.toString());
+  } catch (err) {
+    console.warn('Failed to save last read Bible position:', err);
   }
 }
 

@@ -33,8 +33,10 @@ import {
   Image as ImageIcon,
   Music,
   ShieldCheck,
+  Info,
 } from 'lucide-react';
 import { PrivacyPolicyModal } from './PrivacyPolicyModal';
+import { AboutCreditsModal } from './AboutCreditsModal';
 import {
   AppTheme,
   RefFormat,
@@ -137,6 +139,7 @@ const FONT_OPTIONS: {
 
 const ALL_TRANSLATIONS = [
   { id: 'KJV', name: 'King James Version (KJV)', desc: 'Classic, verbatim 1611 majestic text', size: '4.2 MB' },
+  { id: 'KJV_STRONGS', name: 'Concordance (KJV)', desc: "King James text with interactive Strong's Greek/Hebrew numbers", size: '6.4 MB' },
   { id: 'NKJV', name: 'New King James Version (NKJV)', desc: 'Modern readability maintaining classic accuracy', size: '4.5 MB' },
   { id: 'ESV', name: 'English Standard Version (ESV)', desc: 'Word-for-word literary accuracy & precision', size: '4.6 MB' },
   { id: 'WEB', name: 'World English Bible (WEB)', desc: 'Modern public domain English translation', size: '4.1 MB' },
@@ -185,6 +188,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [importErrorMsg, setImportErrorMsg] = useState<string | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState<boolean>(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState<boolean>(false);
+  const [showAboutCredits, setShowAboutCredits] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Accordion rollup state for each subgroup
@@ -275,7 +279,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
     try {
       // Warm up offline cache for this translation
-      await warmupOfflineBibleCache();
+      await warmupOfflineBibleCache(transId);
     } catch (_) {}
 
     setTimeout(() => {
@@ -1653,12 +1657,61 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             </div>
           </div>
         </button>
+
+        {/* SUBGROUP 9: ABOUT & CREDITS */}
+        <button
+          id="settings-about-credits-panel"
+          type="button"
+          onClick={() => setShowAboutCredits(true)}
+          className={`w-full block rounded-3xl border transition-all overflow-hidden shadow-xs group cursor-pointer text-left ${
+            isPureBlack
+              ? 'bg-neutral-950 hover:bg-neutral-900 border-neutral-900 hover:border-neutral-800'
+              : isNavy
+              ? 'bg-[#1c2541]/80 hover:bg-[#232f55] border-[#3a506b] hover:border-[#4f6d7a]'
+              : isNeutralDark
+              ? 'bg-neutral-900/90 hover:bg-neutral-800/90 border-neutral-800 hover:border-neutral-700'
+              : 'bg-white hover:bg-stone-50 border-stone-200 hover:border-stone-300'
+          }`}
+        >
+          <div className="w-full p-4 sm:p-5 flex items-center justify-between text-left">
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/10 dark:bg-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0 group-hover:scale-105 transition-transform">
+                <Info className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-base font-bold tracking-tight group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                  About & Credits
+                </h2>
+                <div className="text-xs opacity-60 truncate">
+                  Strong's Concordance • Scripture attributions • Licenses
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0 ml-2">
+              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                Attributions
+              </span>
+              <div className="p-1.5 rounded-xl bg-stone-200/50 dark:bg-neutral-800 text-stone-600 dark:text-stone-300 group-hover:translate-x-0.5 transition-transform">
+                <ChevronRight className="w-4 h-4" />
+              </div>
+            </div>
+          </div>
+        </button>
       </div>
 
       {/* Privacy Policy Modal */}
       {showPrivacyPolicy && (
         <PrivacyPolicyModal
           onClose={() => setShowPrivacyPolicy(false)}
+          darkMode={isEffectiveDark}
+        />
+      )}
+
+      {/* About & Credits Modal */}
+      {showAboutCredits && (
+        <AboutCreditsModal
+          onClose={() => setShowAboutCredits(false)}
           darkMode={isEffectiveDark}
         />
       )}

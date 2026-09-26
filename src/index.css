@@ -383,3 +383,39 @@ body .ref-click-btn {
   font-size: 1.75rem !important;
 }
 
+/* Splash Screen Animations */
+@keyframes splashLogoPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes splashFadeUp {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-splash-logo {
+  animation: splashLogoPop 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-splash-text {
+  animation: splashFadeUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
+}
+
+
