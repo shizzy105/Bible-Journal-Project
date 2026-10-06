@@ -31,7 +31,7 @@ let HEBREW_INDEX_PROMISE: Promise<StrongsOccurrencesMap | null> | null = null;
  */
 export async function loadFullTranslation(translation: string): Promise<FullBibleData | null> {
   const transKey = translation.toUpperCase();
-  const bundledFull = ['KJV', 'KJV_STRONGS', 'ESV', 'NKJV', 'WEB', 'NIV', 'NLT'];
+  const bundledFull = ['KJV', 'KJV_STRONGS', 'ESV', 'NKJV', 'WEB', 'NIV', 'NLT', 'YOR'];
   if (!bundledFull.includes(transKey)) {
     return null;
   }

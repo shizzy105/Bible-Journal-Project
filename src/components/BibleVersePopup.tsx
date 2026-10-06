@@ -10,6 +10,7 @@ import { ConcordanceVerseRenderer } from './ConcordanceVerseRenderer';
 const ALL_POSSIBLE_TRANSLATIONS = [
   { id: 'KJV', name: 'King James Version (KJV)' },
   { id: 'KJV_STRONGS', name: "King James Version with Strong's Concordance" },
+  { id: 'YOR', name: 'Bíbélì Mímọ́ (Yoruba)' },
   { id: 'NKJV', name: 'New King James Version (NKJV)' },
   { id: 'ESV', name: 'English Standard Version (ESV)' },
   { id: 'WEB', name: 'World English Bible (WEB)' },

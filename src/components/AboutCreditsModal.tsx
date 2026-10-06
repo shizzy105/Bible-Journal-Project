@@ -14,7 +14,7 @@ export const AboutCreditsModal: React.FC<AboutCreditsModalProps> = ({ onClose, d
 
 Application: Asor Notes (Offline Bible Study & Concordance Journal)
 Developer: Asor Initiative
-Contact: asornotes@gmail.com
+Contact: help@Asornotes.com
 
 BIBLICAL TEXTS & CONCORDANCE ATTRIBUTIONS:
 1. Strong's Exhaustive Concordance (1890)
@@ -211,11 +211,11 @@ OPEN SOURCE & ASSETS:
         {/* Footer */}
         <div className="p-4 border-t border-stone-200 dark:border-neutral-800 bg-stone-50/50 dark:bg-neutral-950/50 flex items-center justify-between gap-3 shrink-0">
           <a
-            href="mailto:asornotes@gmail.com?subject=Asor%20Notes%20Credits%20%26%20Feedback"
+            href="mailto:help@Asornotes.com?subject=Asor%20Notes%20Credits%20%26%20Feedback"
             className="text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1.5"
           >
             <Mail className="w-3.5 h-3.5" />
-            <span>asornotes@gmail.com</span>
+            <span>help@Asornotes.com</span>
           </a>
 
           <button

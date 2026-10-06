@@ -55,15 +55,303 @@ function createSampleWavDataUrl(): string {
   }
 }
 
+// Helper to create inline interactive reference chips for starter entries
+function createStarterRefChip(refText: string): string {
+  const escaped = refText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return `<span data-ref="${escaped}" style="touch-action: manipulation; -webkit-user-select: all; user-select: all; -webkit-touch-callout: none; pointer-events: auto; -webkit-tap-highlight-color: transparent; cursor: pointer;" class="ref-chip inline-block align-baseline mx-1 my-0 px-2 py-[1.5px] rounded-md bg-red-100 dark:bg-red-950/90 border border-red-200/50 dark:border-red-900/50 text-red-600 dark:text-red-400 font-semibold text-[0.88em] leading-normal cursor-pointer whitespace-nowrap active:scale-95 transition-transform"><span class="ref-click-btn inline align-baseline hover:underline" style="pointer-events: auto; -webkit-user-select: all; user-select: all;">${escaped}</span></span>`;
+}
+
+// Helper to create inline interactive Strong's chips for starter entries
+function createStarterStrongsChip(strongsId: string): string {
+  const escaped = strongsId.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return `<span data-strongs="${escaped}" style="touch-action: manipulation; -webkit-user-select: all; user-select: all; -webkit-touch-callout: none; pointer-events: auto; -webkit-tap-highlight-color: transparent; cursor: pointer;" class="ref-chip inline-block align-baseline mx-1 my-0 px-2 py-[1.5px] rounded-md bg-blue-100 dark:bg-blue-950/90 border border-blue-200/50 dark:border-blue-900/50 text-blue-600 dark:text-blue-400 font-semibold text-[0.88em] leading-normal cursor-pointer whitespace-nowrap active:scale-95 transition-transform"><span class="ref-click-btn inline align-baseline hover:underline" style="pointer-events: auto; -webkit-user-select: all; user-select: all;">${escaped}</span></span>`;
+}
+
+// Welcome starter entry explaining Asor Notes features (pinned for new installations)
+const WELCOME_ENTRY: JournalEntry = {
+  id: 'entry-welcome',
+  title: 'Welcome to Asor Notes! 📖✨',
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  dateString: new Date().toISOString().split('T')[0],
+  pinned: true,
+  blocks: [
+    {
+      id: 'wb-1',
+      type: 'text',
+      content:
+        '<div><strong>Welcome to Asor Notes!</strong> A personal, distraction-free sanctuary designed for sermon notes, daily devotionals, Bible study, and spiritual reflections.</div><div><br></div><div>Here is a quick guide to help you get the most out of your journal:</div>',
+    },
+    {
+      id: 'wb-2',
+      type: 'text',
+      content:
+        '<div><strong>📖 1. Insert Interactive Scripture References</strong></div>' +
+        '<div>Tap the <strong>+ Reference</strong> button (or book icon) in the bottom toolbar to insert any Scripture passage into your note, such as:</div>' +
+        '<div><ul>' +
+        '<li>A single verse: ' +
+        createStarterRefChip('John 3:16') +
+        '</li>' +
+        '<li>A string of verses: ' +
+        createStarterRefChip('Rom 12:1-2') +
+        '</li>' +
+        '<li>A full chapter: ' +
+        createStarterRefChip('Psalm 23') +
+        '</li>' +
+        '</ul></div>' +
+        '<div>Once inserted:</div>' +
+        '<div><ul>' +
+        '<li><strong>Tap any reference chip</strong> at any time to read the passage in a clean popup.</li>' +
+        '<li><strong>Switch translations</strong> on the fly between KJV, NKJV, ESV, NIV, NLT, and Yoruba (Bíbélì Mímọ́).</li>' +
+        '<li><strong>Examine Greek &amp; Hebrew roots</strong> directly with the integrated Strong\'s Concordance.</li>' +
+        '</ul></div>',
+    },
+    {
+      id: 'wb-3',
+      type: 'text',
+      content:
+        '<div><strong>✍️ 2. Smart Formatting Shortcuts</strong></div>' +
+        '<div><ul>' +
+        '<li>Type <code>- </code> or <code>* </code> at the start of a line to automatically create a bullet list.</li>' +
+        '<li>Type <code>---</code> on an empty line to insert a clean divider rule.</li>' +
+        '<li>Format text with headings, bold, italics, underline, custom colors, highlights, and font sizes using the bottom toolbar.</li>' +
+        '</ul></div>',
+    },
+    {
+      id: 'wb-4',
+      type: 'text',
+      content:
+        '<div><strong>🎨 3. Multi-Media Journal Blocks</strong></div>' +
+        '<div>Enrich your study notes with different types of media:</div>' +
+        '<div><ul>' +
+        '<li>🎙️ <strong>Voice Recordings:</strong> Capture sermons or spoken reflections with built-in playback controls.</li>' +
+        '<li>🎨 <strong>Sketches &amp; Drawings:</strong> Draw diagrams, mind maps, or handwritten prayer notes on the canvas.</li>' +
+        '<li>📷 <strong>Photos &amp; Images:</strong> Insert sermon slides, book photos, or study materials.</li>' +
+        '</ul></div>',
+    },
+    {
+      id: 'wb-5',
+      type: 'text',
+      content:
+        '<div><strong>🗓️ 4. Organization &amp; Calendar View</strong></div>' +
+        '<div><ul>' +
+        '<li><strong>Pin Notes:</strong> Tap the Pin icon to keep essential notes at the top (like this welcome note!).</li>' +
+        '<li><strong>Calendar View:</strong> Tap the calendar icon in the header to review your spiritual walk day-by-day.</li>' +
+        '<li><strong>Instant Search:</strong> Find any note, topic, or Bible reference in seconds using the search bar.</li>' +
+        '</ul></div>',
+    },
+    {
+      id: 'wb-6',
+      type: 'text',
+      content:
+        '<div><strong>🔒 5. 100% Offline &amp; Private</strong></div>' +
+        '<div>Your notes remain securely stored on your device with no accounts or internet required. You can export or backup your entire journal at any time in <strong>Settings</strong>.</div>' +
+        '<div><br></div>' +
+        '<div>🌐 <strong>Official Website:</strong> Visit <a href="https://asornotes.com" target="_blank" rel="noopener noreferrer" style="color: #ef4444; font-weight: 600; text-decoration: underline;">Asornotes.com</a> for tips, updates, and devotionals.</div>' +
+        '<div><br></div>' +
+        '<div><em>May your study time be blessed and fruitful!</em> 🙏</div>',
+    },
+  ],
+};
+
+// Shortcuts starter entry explaining all instant editor shortcuts (pinned for new installations)
+const SHORTCUTS_ENTRY: JournalEntry = {
+  id: 'entry-shortcuts',
+  title: 'Editor & Keyboard Shortcuts ⚡📝',
+  createdAt: new Date(Date.now() - 1000).toISOString(),
+  updatedAt: new Date(Date.now() - 1000).toISOString(),
+  dateString: new Date().toISOString().split('T')[0],
+  pinned: true,
+  blocks: [
+    {
+      id: 'sc-1',
+      type: 'text',
+      content:
+        '<div><strong>Speed up your note-taking with Asor Shortcuts!</strong> Whether you are in church listening to a fast-moving sermon, journaling in personal devotion, or studying scripture roots, these quick gestures and typing shortcuts will save you time.</div>',
+    },
+    {
+      id: 'sc-2',
+      type: 'text',
+      content:
+        '<div><strong>⚡ 1. Instant Scripture Pill Trigger (<code>//</code> or <code>..</code>)</strong></div>' +
+        '<div>Type a citation followed immediately by double slash <code>//</code> or double period <code>..</code> to convert it into an interactive pill in real time:</div>' +
+        '<div><ul>' +
+        '<li>Type <code>John 3:16//</code> ➔ ' + createStarterRefChip('John 3:16') + '</li>' +
+        '<li>Type <code>Rom 8:28-30..</code> ➔ ' + createStarterRefChip('Rom 8:28-30') + '</li>' +
+        '<li>Type <code>Psalm 23//</code> ➔ ' + createStarterRefChip('Psalm 23') + '</li>' +
+        '<li>Type <code>G2424//</code> (Strong’s for Jesus) ➔ ' + createStarterStrongsChip('G2424') + '</li>' +
+        '<li>Type <code>H1234..</code> ➔ ' + createStarterStrongsChip('H1234') + '</li>' +
+        '</ul></div>' +
+        '<div><em>The cursor automatically lands right after a space so you can keep typing without lifting your fingers!</em></div>',
+    },
+    {
+      id: 'sc-3',
+      type: 'text',
+      content:
+        '<div><strong>🧹 2. 1-Tap Pill Deletion</strong></div>' +
+        '<div><ul>' +
+        '<li>Press <strong>Backspace</strong> once behind any Scripture pill or Strong’s badge to wipe out the whole pill instantly.</li>' +
+        '<li>No awkward broken characters, no lingering brackets, and your mobile keyboard remains open.</li>' +
+        '</ul></div>',
+    },
+    {
+      id: 'sc-4',
+      type: 'text',
+      content:
+        '<div><strong>📋 3. Quick Markdown Formatting</strong></div>' +
+        '<div><ul>' +
+        '<li><strong>Bullet List:</strong> Type <code>- </code> or <code>* </code> at the start of a line to begin an unordered list. Press Enter on an empty bullet to exit the list.</li>' +
+        '<li><strong>Horizontal Divider:</strong> Type <code>---</code> (three hyphens) on any line to instantly insert a sleek horizontal divider rule.</li>' +
+        '</ul></div>',
+    },
+    {
+      id: 'sc-5',
+      type: 'text',
+      content:
+        '<div><strong>📅 4. Beautiful Custom Date Selector</strong></div>' +
+        '<div><ul>' +
+        '<li>Tap the <strong>Date pill</strong> at the top left of the note editor to open the custom calendar selector.</li>' +
+        '<li>Tap <strong>Today</strong> or <strong>Yesterday</strong> for fast 1-tap logging.</li>' +
+        '<li>Tap the <strong>Month &amp; Year header</strong> to quickly jump across years (1960–2045) and months in a single tap.</li>' +
+        '</ul></div>',
+    },
+    {
+      id: 'sc-6',
+      type: 'text',
+      content:
+        '<div><strong>⌨️ 5. Desktop &amp; External Keyboard Hotkeys</strong></div>' +
+        '<div>If you use an external keyboard or tablet:</div>' +
+        '<div><ul>' +
+        '<li><strong>Ctrl + Z / ⌘ + Z:</strong> Undo last action</li>' +
+        '<li><strong>Ctrl + Y / ⌘ + Y (or Ctrl+Shift+Z):</strong> Redo action</li>' +
+        '<li><strong>Ctrl + A / ⌘ + A:</strong> Select all note blocks (reveals batch Copy, Cut, and Delete bar)</li>' +
+        '<li><strong>Escape:</strong> Close popups, modals, and deselect all blocks</li>' +
+        '</ul></div>',
+    },
+    {
+      id: 'sc-7',
+      type: 'text',
+      content:
+        '<div><strong>💡 Try it right here!</strong></div>' +
+        '<div>Tap below this line and type <code>Heb 11:1//</code> or <code>- Faith is...</code> to see the shortcuts in action:</div>' +
+        '<div><br></div>',
+    },
+  ],
+};
+
+// Settings & Customization starter entry explaining all options in settings (pinned for new installations)
+const SETTINGS_GUIDE_ENTRY: JournalEntry = {
+  id: 'entry-settings-guide',
+  title: 'Settings & Customization Guide ⚙️🛠️',
+  createdAt: new Date(Date.now() - 2000).toISOString(),
+  updatedAt: new Date(Date.now() - 2000).toISOString(),
+  dateString: new Date().toISOString().split('T')[0],
+  pinned: true,
+  blocks: [
+    {
+      id: 'sg-1',
+      type: 'text',
+      content:
+        '<div><strong>Personalize your study experience!</strong> Tap the <strong>⚙️ Settings</strong> icon in the top header at any time to tailor Asor Notes to your preferences. Everything operates 100% locally on your device with complete offline privacy.</div><div><br></div><div>Here is a quick walkthrough of every setting option:</div>',
+    },
+    {
+      id: 'sg-2',
+      type: 'text',
+      content:
+        '<div><strong>🎨 1. Theme &amp; Appearance</strong></div>' +
+        '<div>Switch your reading atmosphere to match your environment:</div>' +
+        '<div><ul>' +
+        '<li><strong>☀️ Light Mode:</strong> Warm, classic parchment and paper aesthetic with crisp contrast.</li>' +
+        '<li><strong>🌙 Dark Mode:</strong> Gentle dark tones for evening study without eye fatigue.</li>' +
+        '<li><strong>🖤 Pure Black (OLED):</strong> True pitch-black pixels for maximum contrast and battery efficiency on OLED screens.</li>' +
+        '<li><strong>🌌 Navy Theme:</strong> A calming midnight blue sanctuary palette.</li>' +
+        '<li><strong>📱 System Default:</strong> Automatically syncs with your operating system theme.</li>' +
+        '</ul></div>',
+    },
+    {
+      id: 'sg-3',
+      type: 'text',
+      content:
+        '<div><strong>📖 2. Bible Translations &amp; Offline Storage</strong></div>' +
+        '<div><ul>' +
+        '<li><strong>Default Translation:</strong> Choose which version opens first when tapping a scripture pill (KJV, Strong\'s Concordance, Yoruba Bíbélì Mímọ́, NKJV, ESV, WEB, NIV, or NLT).</li>' +
+        '<li><strong>Offline Bible Pre-Caching:</strong> Pre-load full Bible translations onto your device with one tap. Access every chapter and verse offline anywhere—in churches with spotty reception, on flights, or on retreats.</li>' +
+        '</ul></div>',
+    },
+    {
+      id: 'sg-4',
+      type: 'text',
+      content:
+        '<div><strong>🔤 3. App Font &amp; Typography</strong></div>' +
+        '<div>Choose a typeface designed for comfort and focus:</div>' +
+        '<div><ul>' +
+        '<li><strong>Original Default:</strong> Modern clean interface paired with classic book serif text.</li>' +
+        '<li><strong>Literata Serif:</strong> Majestic literary serif designed specifically for scriptures.</li>' +
+        '<li><strong>Crimson Pro:</strong> Theological book elegance for classic devotionals.</li>' +
+        '<li><strong>Nunito Rounded:</strong> Soft, friendly, and calm devotional reading atmosphere.</li>' +
+        '<li><strong>Roboto Slab:</strong> Bold, structured, contemporary study layout.</li>' +
+        '<li><strong>Caveat Journal:</strong> Warm, organic, handwritten reflection style.</li>' +
+        '</ul></div>',
+    },
+    {
+      id: 'sg-5',
+      type: 'text',
+      content:
+        '<div><strong>🏷️ 4. Scripture Tag Format</strong></div>' +
+        '<div>Customize how scripture citations look in your notes:</div>' +
+        '<div><ul>' +
+        '<li><strong>Pill Badge with Translation:</strong> Shows full book, verse, and version tag (e.g., [John 3:16 · KJV]).</li>' +
+        '<li><strong>Minimalist Pill:</strong> Clean, compact pill badge displaying just the citation (e.g., [John 3:16]).</li>' +
+        '<li><strong>Raw Text:</strong> Retains references as standard inline text.</li>' +
+        '</ul></div>',
+    },
+    {
+      id: 'sg-6',
+      type: 'text',
+      content:
+        '<div><strong>💾 5. Backup, Export &amp; Import (100% Offline &amp; Private)</strong></div>' +
+        '<div>Take total control of your study records:</div>' +
+        '<div><ul>' +
+        '<li><strong>Full ZIP Archive:</strong> Exports all your notes, audio recordings, canvas drawings, and photos in a single portable ZIP package.</li>' +
+        '<li><strong>JSON Backup:</strong> Lightweight file backup for quick transfer.</li>' +
+        '<li><strong>Restore &amp; Merge:</strong> Move notes to a new phone, tablet, or browser without losing or overwriting existing entries.</li>' +
+        '</ul></div>',
+    },
+    {
+      id: 'sg-7',
+      type: 'text',
+      content:
+        '<div><strong>🗑️ 6. Trash &amp; 30-Day Recovery</strong></div>' +
+        '<div><ul>' +
+        '<li>Deleted notes are safely held in <strong>Recently Deleted</strong> for 30 days before permanent erasure.</li>' +
+        '<li>Restore accidentally deleted sermon notes with a single tap, or empty the trash whenever you choose.</li>' +
+        '</ul></div>',
+    },
+    {
+      id: 'sg-8',
+      type: 'text',
+      content:
+        '<div><strong>ℹ️ 7. Privacy, Credits &amp; Official Website</strong></div>' +
+        '<div><ul>' +
+        '<li><strong>Privacy Guarantee:</strong> Zero accounts, zero ads, zero telemetry. Your notes never leave your personal device.</li>' +
+        '<li><strong>Official Website:</strong> Visit <a href="https://asornotes.com" target="_blank" rel="noopener noreferrer" style="color: #ef4444; font-weight: 600; text-decoration: underline;">Asornotes.com</a> for updates, new features, and user guides.</li>' +
+        '</ul></div>',
+    },
+  ],
+};
+
 // Sample starter entries demonstrating all features
 const STARTER_ENTRIES: JournalEntry[] = [
+  WELCOME_ENTRY,
+  SHORTCUTS_ENTRY,
+  SETTINGS_GUIDE_ENTRY,
   {
     id: 'entry-sample-1',
     title: 'Sermon Notes: The Power of Mercy',
     createdAt: new Date(Date.now() - 3600000 * 24 * 1).toISOString(), // Yesterday
     updatedAt: new Date(Date.now() - 3600000 * 24 * 1).toISOString(),
     dateString: new Date(Date.now() - 3600000 * 24 * 1).toISOString().split('T')[0],
-    pinned: true,
+    pinned: false,
     blocks: [
       {
         id: 'b1',
@@ -82,9 +370,9 @@ const STARTER_ENTRIES: JournalEntry[] = [
   {
     id: 'entry-sample-2',
     title: 'Morning Devotional & Prayer Sketch',
-    createdAt: new Date().toISOString(), // Today
-    updatedAt: new Date().toISOString(),
-    dateString: new Date().toISOString().split('T')[0],
+    createdAt: new Date(Date.now() - 3600000 * 24 * 2).toISOString(), // 2 days ago
+    updatedAt: new Date(Date.now() - 3600000 * 24 * 2).toISOString(),
+    dateString: new Date(Date.now() - 3600000 * 24 * 2).toISOString().split('T')[0],
     pinned: false,
     blocks: [
       {
@@ -170,6 +458,53 @@ export function getStoredEntries(): JournalEntry[] {
     const data = localStorage.getItem(STORAGE_KEY_ENTRIES);
     if (data) {
       inMemoryEntries = JSON.parse(data);
+      // If user has the sample starter dataset or is missing Welcome, Shortcuts, or Settings guides, ensure they are present
+      if (inMemoryEntries && Array.isArray(inMemoryEntries)) {
+        const welcomeIdx = inMemoryEntries.findIndex((e) => e.id === 'entry-welcome');
+        const shortcutsIdx = inMemoryEntries.findIndex((e) => e.id === 'entry-shortcuts');
+        const settingsIdx = inMemoryEntries.findIndex((e) => e.id === 'entry-settings-guide');
+        let shouldSave = false;
+
+        // Ensure Welcome entry contains Asornotes.com
+        if (welcomeIdx !== -1) {
+          const welcome = inMemoryEntries[welcomeIdx];
+          const hasWebUrl = welcome.blocks?.some((b) => b.type === 'text' && 'content' in b && (b.content as string)?.includes('Asornotes.com'));
+          if (!hasWebUrl) {
+            inMemoryEntries[welcomeIdx] = WELCOME_ENTRY;
+            shouldSave = true;
+          }
+        }
+
+        if (shortcutsIdx === -1) {
+          if (welcomeIdx !== -1) {
+            inMemoryEntries.splice(welcomeIdx + 1, 0, SHORTCUTS_ENTRY);
+          } else {
+            inMemoryEntries = [SHORTCUTS_ENTRY, ...inMemoryEntries];
+          }
+          shouldSave = true;
+        }
+
+        if (settingsIdx === -1) {
+          const insertPos = inMemoryEntries.findIndex((e) => e.id === 'entry-shortcuts');
+          if (insertPos !== -1) {
+            inMemoryEntries.splice(insertPos + 1, 0, SETTINGS_GUIDE_ENTRY);
+          } else if (welcomeIdx !== -1) {
+            inMemoryEntries.splice(welcomeIdx + 1, 0, SETTINGS_GUIDE_ENTRY);
+          } else {
+            inMemoryEntries = [SETTINGS_GUIDE_ENTRY, ...inMemoryEntries];
+          }
+          shouldSave = true;
+        }
+
+        if (welcomeIdx === -1 && inMemoryEntries.some((e) => e.id.startsWith('entry-sample-'))) {
+          inMemoryEntries = [WELCOME_ENTRY, ...inMemoryEntries];
+          shouldSave = true;
+        }
+
+        if (shouldSave) {
+          saveStoredEntries(inMemoryEntries);
+        }
+      }
       // Background async sync with IndexedDB to load full audio if truncated in localStorage
       loadEntriesFromIndexedDB();
       return inMemoryEntries!;
@@ -421,8 +756,8 @@ export function setStoredTranslation(trans: string): void {
   }
 }
 
-const STORAGE_KEY_DOWNLOADED_TRANS = 'bible_journal_downloaded_translations_v1';
-const STORAGE_KEY_ENABLED_VERSIONS = 'bible_journal_enabled_versions_v1';
+const STORAGE_KEY_DOWNLOADED_TRANS = 'bible_journal_downloaded_translations_v2';
+const STORAGE_KEY_ENABLED_VERSIONS = 'bible_journal_enabled_versions_v2';
 
 export function getEnabledTranslations(): string[] {
   try {
@@ -430,17 +765,13 @@ export function getEnabledTranslations(): string[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        // Ensure KJV_STRONGS is included in enabled list if user had previous storage
-        if (!parsed.includes('KJV_STRONGS')) {
-          parsed.push('KJV_STRONGS');
-        }
         return parsed;
       }
     }
   } catch {
     // fallback
   }
-  return ['KJV', 'KJV_STRONGS', 'ESV']; // KJV, Concordance (KJV), and ESV are ON by default
+  return ['KJV', 'KJV_STRONGS']; // Only KJV and Concordance (KJV) are bundled by default
 }
 
 export function setEnabledTranslations(list: string[]): void {
@@ -457,16 +788,16 @@ export function getDownloadedTranslations(): string[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        if (!parsed.includes('KJV_STRONGS')) {
-          parsed.push('KJV_STRONGS');
-        }
+        // Ensure core bundled translations are always available offline
+        if (!parsed.includes('KJV')) parsed.unshift('KJV');
+        if (!parsed.includes('KJV_STRONGS')) parsed.push('KJV_STRONGS');
         return parsed;
       }
     }
   } catch {
     // fallback
   }
-  return ['KJV', 'KJV_STRONGS', 'ESV', 'WEB', 'NKJV', 'NIV', 'NLT'];
+  return ['KJV', 'KJV_STRONGS']; // Only KJV and Concordance (KJV) are bundled by default
 }
 
 export function setDownloadedTranslations(list: string[]): void {

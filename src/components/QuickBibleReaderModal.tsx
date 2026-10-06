@@ -39,6 +39,7 @@ import { BibleSearchDrawer, StrongsSearchTarget } from './BibleSearchDrawer';
 const ALL_POSSIBLE_TRANSLATIONS = [
   { id: 'KJV', name: 'King James Version (KJV)' },
   { id: 'KJV_STRONGS', name: "King James Version with Strong's Concordance" },
+  { id: 'YOR', name: 'Bíbélì Mímọ́ (Yoruba)' },
   { id: 'NKJV', name: 'New King James Version (NKJV)' },
   { id: 'ESV', name: 'English Standard Version (ESV)' },
   { id: 'WEB', name: 'World English Bible (WEB)' },
@@ -673,7 +674,12 @@ export const QuickBibleReaderModal: React.FC<QuickBibleReaderModalProps> = ({
                 ? 'bg-red-950/40 hover:bg-red-900/60 border-red-900/40 text-red-300'
                 : 'bg-red-50 hover:bg-red-100 border-red-200 text-red-700'
             }`}
-            onClick={() => setShowSearchDrawer(true)}
+            onClick={() => {
+              if (document.activeElement instanceof HTMLElement) {
+                document.activeElement.blur();
+              }
+              setShowSearchDrawer(true);
+            }}
             title="Click to reopen search results"
           >
             <div className="flex items-center gap-1.5 truncate">
@@ -1174,6 +1180,9 @@ export const QuickBibleReaderModal: React.FC<QuickBibleReaderModalProps> = ({
           darkMode={darkMode}
           activeStrongsSearch={activeStrongsSearch}
           onClearStrongsSearch={() => setActiveStrongsSearch(null)}
+          hasActiveSearchSession={hasActiveSearchSession}
+          onResetSearchSession={() => setHasActiveSearchSession(false)}
+          initialQuery={initialSearchQuery}
         />
       </div>
     </div>

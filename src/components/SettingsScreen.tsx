@@ -140,6 +140,7 @@ const FONT_OPTIONS: {
 const ALL_TRANSLATIONS = [
   { id: 'KJV', name: 'King James Version (KJV)', desc: 'Classic, verbatim 1611 majestic text', size: '4.2 MB' },
   { id: 'KJV_STRONGS', name: 'Concordance (KJV)', desc: "King James text with interactive Strong's Greek/Hebrew numbers", size: '6.4 MB' },
+  { id: 'YOR', name: 'Bíbélì Mímọ́ (Yoruba)', desc: 'Authentic 1900/2010 Yoruba Holy Bible with complete diacritics', size: '5.2 MB' },
   { id: 'NKJV', name: 'New King James Version (NKJV)', desc: 'Modern readability maintaining classic accuracy', size: '4.5 MB' },
   { id: 'ESV', name: 'English Standard Version (ESV)', desc: 'Word-for-word literary accuracy & precision', size: '4.6 MB' },
   { id: 'WEB', name: 'World English Bible (WEB)', desc: 'Modern public domain English translation', size: '4.1 MB' },
@@ -191,21 +192,37 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [showAboutCredits, setShowAboutCredits] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Accordion rollup state for each subgroup
+  // Accordion rollup state for each subgroup (only one open at a time to prevent bulkiness)
   const [openSections, setOpenSections] = useState<{ [key: string]: boolean }>({
     theme: false,
+    translations: false,
     font: false,
     format: false,
-    translations: false,
     backup: false,
     trash: false,
   });
 
   const toggleSection = (sectionKey: string) => {
-    setOpenSections((prev) => ({
-      ...prev,
-      [sectionKey]: !prev[sectionKey],
-    }));
+    setOpenSections((prev) => {
+      const willBeOpen = !prev[sectionKey];
+      if (willBeOpen) {
+        // Open clicked section and minimize any other open section
+        return {
+          theme: false,
+          translations: false,
+          font: false,
+          format: false,
+          backup: false,
+          trash: false,
+          [sectionKey]: true,
+        };
+      } else {
+        return {
+          ...prev,
+          [sectionKey]: false,
+        };
+      }
+    });
   };
 
   const refreshStats = () => {
@@ -244,8 +261,16 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         return; // Always keep at least 1 version enabled
       }
       next = enabledVersions.filter((id) => id !== transId);
+      if (selectedTranslation === transId && next.length > 0) {
+        setSelectedTranslation(next[0]);
+        setStoredTranslation(next[0]);
+      }
     } else {
       next = [...enabledVersions, transId];
+      if (!selectedTranslation || !next.includes(selectedTranslation)) {
+        setSelectedTranslation(transId);
+        setStoredTranslation(transId);
+      }
     }
     setEnabledVersions(next);
     setEnabledTranslations(next);
@@ -256,16 +281,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     setStoredRefFormat(fmt);
   };
 
-  const handleSelectDefaultTranslation = (transId: string) => {
-    setSelectedTranslation(transId);
-    setStoredTranslation(transId);
-  };
-
   const handleDownloadTranslation = async (transId: string) => {
     if (downloadedList.includes(transId)) return;
 
     setDownloadingId(transId);
-    setDownloadProgress(10);
+    setDownloadProgress(15);
 
     const interval = setInterval(() => {
       setDownloadProgress((prev) => {
@@ -273,12 +293,13 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           clearInterval(interval);
           return 90;
         }
-        return prev + 20;
+        return prev + 25;
       });
-    }, 250);
+    }, 200);
 
     try {
-      // Warm up offline cache for this translation
+      // Fetch full translation json from server so browser/offline cache stores it
+      await fetch(`/bible/${transId}.json`).catch(() => {});
       await warmupOfflineBibleCache(transId);
     } catch (_) {}
 
@@ -290,11 +311,18 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       setDownloadedList(newList);
       setDownloadedTranslations(newList);
 
+      // Auto-enable translation once downloaded so it immediately appears in reader
+      if (!enabledVersions.includes(transId)) {
+        const nextEnabled = [...enabledVersions, transId];
+        setEnabledVersions(nextEnabled);
+        setEnabledTranslations(nextEnabled);
+      }
+
       setTimeout(() => {
         setDownloadingId(null);
         setDownloadProgress(0);
-      }, 600);
-    }, 1400);
+      }, 500);
+    }, 1100);
   };
 
   const handleClearCache = () => {
@@ -742,7 +770,146 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           )}
         </div>
 
-        {/* SUBGROUP 2: APP FONT & TYPOGRAPHY */}
+        {/* SUBGROUP 2: BIBLE TRANSLATIONS & OFFLINE DOWNLOADS */}
+        <div className={`rounded-3xl border transition-all overflow-hidden shadow-xs ${cardClass}`}>
+          <button
+            type="button"
+            onClick={() => toggleSection('translations')}
+            className="w-full p-4 sm:p-5 flex items-center justify-between text-left transition-colors hover:bg-stone-500/5 focus:outline-none"
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+                <BookOpen className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-base font-bold tracking-tight">Bible Translations & Offline</h2>
+                <div className="text-xs opacity-60 truncate">
+                  {enabledVersions.length} of {ALL_TRANSLATIONS.length} Enabled • {downloadedList.length} Offline
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0 ml-2">
+              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                {enabledVersions.length} Active
+              </span>
+              <div
+                className={`p-1.5 rounded-xl transition-transform duration-200 ${
+                  openSections.translations ? 'rotate-180 bg-stone-200/50 dark:bg-neutral-800' : ''
+                }`}
+              >
+                <ChevronDown className="w-4 h-4 opacity-70" />
+              </div>
+            </div>
+          </button>
+
+          {openSections.translations && (
+            <div className="px-4 sm:px-5 pb-5 pt-1 border-t border-stone-200/60 dark:border-neutral-800 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="flex items-center justify-between text-xs opacity-70 mb-2.5 pt-1">
+                <span>{enabledVersions.length} of {ALL_TRANSLATIONS.length} translations enabled</span>
+                <span className="text-[11px] opacity-60">Toggle switches to enable or disable</span>
+              </div>
+
+              <div className="space-y-1.5">
+                {ALL_TRANSLATIONS.map((trans) => {
+                  const isDownloaded = downloadedList.includes(trans.id);
+                  const isDownloading = downloadingId === trans.id;
+                  const isEnabledInViewer = enabledVersions.includes(trans.id);
+
+                  return (
+                    <div
+                      key={trans.id}
+                      className="px-3 py-2 rounded-xl border border-stone-200/80 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/40 shadow-2xs flex items-center justify-between gap-3 transition-all"
+                    >
+                      {/* Left Side: Full Name & Subtitle */}
+                      <div className="min-w-0 flex-1 flex flex-col justify-center">
+                        <span className="font-semibold text-xs leading-snug text-stone-900 dark:text-stone-100">
+                          {trans.name}
+                        </span>
+                        <div className="flex items-center gap-1.5 text-[10px] opacity-50 truncate leading-none mt-0.5">
+                          <span>{trans.size}</span>
+                          <span>•</span>
+                          <span className="truncate">{trans.desc}</span>
+                        </div>
+                      </div>
+
+                      {/* Right Side: Offline Status / Download + Switch */}
+                      <div className="flex items-center gap-2.5 shrink-0">
+                        {isDownloaded ? (
+                          <span
+                            title="100% Offline"
+                            className="p-1 rounded-lg text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 shrink-0"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          </span>
+                        ) : isDownloading ? (
+                          <div className="flex items-center gap-1 text-[10px] font-bold text-red-500 shrink-0">
+                            <RefreshCw className="w-3 h-3 animate-spin" />
+                            <span>{downloadProgress}%</span>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadTranslation(trans.id)}
+                            className="p-1 text-red-600 hover:bg-red-500/10 rounded-lg transition-colors shrink-0"
+                            title="Download for offline access"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+
+                        {/* Switch for Enabling/Disabling in Reader */}
+                        <button
+                          type="button"
+                          onClick={() => handleToggleEnabledVersion(trans.id)}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            isEnabledInViewer ? 'bg-red-600' : 'bg-stone-300 dark:bg-neutral-700'
+                          }`}
+                          role="switch"
+                          aria-checked={isEnabledInViewer}
+                          title={
+                            isEnabledInViewer
+                              ? 'Enabled in reader (Click to disable)'
+                              : 'Disabled in reader (Click to enable)'
+                          }
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                              isEnabledInViewer ? 'translate-x-4' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Cache Storage Summary & Clear */}
+              <div className="mt-5 pt-4 border-t border-stone-200 dark:border-neutral-800 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2 opacity-70">
+                  <HardDrive className="w-4 h-4 text-stone-500" />
+                  <span>Offline Cache: ~18.5 MB stored</span>
+                </div>
+                <button
+                  onClick={handleClearCache}
+                  className="text-red-500 hover:text-red-600 font-bold flex items-center gap-1 hover:underline"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Clear Offline Cache</span>
+                </button>
+              </div>
+
+              {cacheClearedMsg && (
+                <div className="mt-2 text-xs text-emerald-500 font-bold text-center">
+                  Offline verse cache cleared successfully!
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* SUBGROUP 3: APP FONT & TYPOGRAPHY */}
         <div className={`rounded-3xl border transition-all overflow-hidden shadow-xs ${cardClass}`}>
           <button
             type="button"
@@ -777,51 +944,53 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
           {openSections.font && (
             <div className="px-4 sm:px-5 pb-5 pt-1 border-t border-stone-200/60 dark:border-neutral-800 animate-in fade-in slide-in-from-top-2 duration-200">
-              <p className="text-xs opacity-70 mb-4">
+              <p className="text-xs opacity-70 mb-3">
                 Select the typeface for reading scriptures and writing journal notes throughout the app.
               </p>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {FONT_OPTIONS.map((f) => {
                   const isSelected = currentFont === f.id;
                   return (
                     <button
                       key={f.id}
                       onClick={() => onChangeFont(f.id)}
-                      className={`p-4 rounded-2xl border-2 text-left transition-all relative flex flex-col justify-between gap-2.5 ${
+                      className={`px-3 py-2.5 rounded-xl border text-left transition-all relative flex items-center justify-between gap-3 ${
                         isSelected
-                          ? 'border-red-600 bg-red-500/5 ring-2 ring-red-500/20'
+                          ? 'border-red-600 bg-red-500/5 ring-1 ring-red-500/30'
                           : isPureBlack
                           ? 'border-neutral-800 bg-neutral-950 hover:border-neutral-700 text-neutral-200'
                           : isNavy
                           ? 'border-[#3a506b] bg-[#1c2541]/50 hover:border-[#5bc0be]'
                           : isNeutralDark
                           ? 'border-neutral-800 bg-neutral-900/50 hover:border-neutral-700 text-neutral-200'
-                          : 'border-stone-200 bg-white hover:border-stone-300 text-stone-900'
+                          : 'border-stone-200/80 bg-white hover:border-stone-300 text-stone-900'
                       }`}
                     >
-                      <div className="flex items-center justify-between w-full">
-                        <div>
-                          <div className="font-bold text-sm leading-tight">{f.name}</div>
-                          <div className="text-[10px] opacity-60 font-semibold">{f.category}</div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="font-bold text-xs text-stone-900 dark:text-stone-100 truncate">
+                            {f.name}
+                          </span>
+                          <span className="text-[10px] opacity-50 font-medium shrink-0">
+                            • {f.category}
+                          </span>
                         </div>
-                        {isSelected && (
-                          <div className="w-5 h-5 rounded-full bg-red-600 text-white flex items-center justify-center shrink-0">
-                            <Check className="w-3.5 h-3.5 font-black" />
-                          </div>
-                        )}
+                        <div
+                          className="text-xs text-stone-700 dark:text-stone-300 truncate mt-1 leading-snug"
+                          style={{ fontFamily: f.fontFamily }}
+                        >
+                          "{f.sample}"
+                        </div>
                       </div>
 
-                      <div
-                        className="p-2.5 rounded-xl bg-stone-100/70 dark:bg-neutral-800/60 border border-stone-200/60 dark:border-neutral-700/50 text-xs leading-relaxed line-clamp-2"
-                        style={{ fontFamily: f.fontFamily }}
-                      >
-                        "{f.sample}"
-                      </div>
-
-                      <div className="text-[10px] opacity-60 leading-tight">
-                        {f.desc}
-                      </div>
+                      {isSelected ? (
+                        <div className="w-5 h-5 rounded-full bg-red-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                          <Check className="w-3.5 h-3.5" />
+                        </div>
+                      ) : (
+                        <div className="w-5 h-5 rounded-full border border-stone-300 dark:border-neutral-700 shrink-0" />
+                      )}
                     </button>
                   );
                 })}
@@ -830,7 +999,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           )}
         </div>
 
-        {/* SUBGROUP 3: SCRIPTURE REFERENCE FORMAT */}
+        {/* SUBGROUP 4: SCRIPTURE REFERENCE FORMAT */}
         <div className={`rounded-3xl border transition-all overflow-hidden shadow-xs ${cardClass}`}>
           <button
             type="button"
@@ -914,165 +1083,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   </div>
                 </button>
               </div>
-            </div>
-          )}
-        </div>
-
-        {/* SUBGROUP 4: BIBLE TRANSLATIONS & OFFLINE DOWNLOADS */}
-        <div className={`rounded-3xl border transition-all overflow-hidden shadow-xs ${cardClass}`}>
-          <button
-            type="button"
-            onClick={() => toggleSection('translations')}
-            className="w-full p-4 sm:p-5 flex items-center justify-between text-left transition-colors hover:bg-stone-500/5 focus:outline-none"
-          >
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
-                <BookOpen className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <h2 className="text-base font-bold tracking-tight">Bible Translations & Offline</h2>
-                <div className="text-xs opacity-60 truncate">
-                  Default: <span className="font-semibold text-emerald-600 dark:text-emerald-400">{selectedTranslation}</span> • {downloadedList.length} Offline
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0 ml-2">
-              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                {selectedTranslation}
-              </span>
-              <div
-                className={`p-1.5 rounded-xl transition-transform duration-200 ${
-                  openSections.translations ? 'rotate-180 bg-stone-200/50 dark:bg-neutral-800' : ''
-                }`}
-              >
-                <ChevronDown className="w-4 h-4 opacity-70" />
-              </div>
-            </div>
-          </button>
-
-          {openSections.translations && (
-            <div className="px-4 sm:px-5 pb-5 pt-1 border-t border-stone-200/60 dark:border-neutral-800 animate-in fade-in slide-in-from-top-2 duration-200">
-              <p className="text-xs opacity-70 mb-4">
-                Set default translations, enable viewer versions, and download full editions for 100% offline study.
-              </p>
-
-              <div className="space-y-3">
-                {ALL_TRANSLATIONS.map((trans) => {
-                  const isDownloaded = downloadedList.includes(trans.id);
-                  const isSelected = selectedTranslation === trans.id;
-                  const isDownloading = downloadingId === trans.id;
-                  const isEnabledInViewer = enabledVersions.includes(trans.id);
-
-                  return (
-                    <div
-                      key={trans.id}
-                      className={`p-3.5 rounded-2xl border flex flex-col gap-3 transition-all ${
-                        isSelected
-                          ? 'border-red-500/80 bg-red-500/5'
-                          : 'border-stone-200 dark:border-neutral-800'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-sm">{trans.name}</span>
-                            {isSelected && (
-                              <span className="text-[10px] bg-red-600 text-white font-black px-1.5 py-0.5 rounded-md shrink-0">
-                                DEFAULT
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs opacity-60 mt-0.5">{trans.desc}</p>
-                          <div className="text-[10px] opacity-40 mt-1">{trans.size} • Full Offline Access</div>
-                        </div>
-
-                        <div className="flex items-center gap-2 shrink-0">
-                          {!isSelected && (
-                            <button
-                              onClick={() => handleSelectDefaultTranslation(trans.id)}
-                              className="px-2.5 py-1.5 text-xs font-semibold rounded-xl bg-stone-200 dark:bg-neutral-800 hover:bg-stone-300 dark:hover:bg-neutral-700 transition-colors"
-                            >
-                              Set Default
-                            </button>
-                          )}
-
-                          {isDownloaded ? (
-                            <span className="flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1.5 rounded-xl border border-emerald-500/20">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>Offline</span>
-                            </span>
-                          ) : isDownloading ? (
-                            <div className="flex flex-col items-end gap-1 w-24">
-                              <div className="flex items-center gap-1 text-xs font-bold text-red-500">
-                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                <span>{downloadProgress}%</span>
-                              </div>
-                              <div className="w-full bg-stone-200 dark:bg-neutral-800 h-1.5 rounded-full overflow-hidden">
-                                <div
-                                  className="bg-red-600 h-full transition-all duration-300"
-                                  style={{ width: `${downloadProgress}%` }}
-                                />
-                              </div>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => handleDownloadTranslation(trans.id)}
-                              className="flex items-center gap-1 px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-xl shadow-xs transition-transform active:scale-95"
-                            >
-                              <Download className="w-3.5 h-3.5" />
-                              <span>Download</span>
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Toggle Switch for Scripture Viewer Version Options */}
-                      <div className="pt-2.5 border-t border-stone-200/60 dark:border-neutral-800 flex items-center justify-between">
-                        <span className="text-xs font-semibold opacity-80">
-                          Show in Scripture Viewer options
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleToggleEnabledVersion(trans.id)}
-                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                            isEnabledInViewer ? 'bg-red-600' : 'bg-stone-300 dark:bg-neutral-700'
-                          }`}
-                          role="switch"
-                          aria-checked={isEnabledInViewer}
-                        >
-                          <span
-                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                              isEnabledInViewer ? 'translate-x-5' : 'translate-x-0'
-                            }`}
-                          />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Cache Storage Summary & Clear */}
-              <div className="mt-5 pt-4 border-t border-stone-200 dark:border-neutral-800 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2 opacity-70">
-                  <HardDrive className="w-4 h-4 text-stone-500" />
-                  <span>Offline Cache: ~18.5 MB stored</span>
-                </div>
-                <button
-                  onClick={handleClearCache}
-                  className="text-red-500 hover:text-red-600 font-bold flex items-center gap-1 hover:underline"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Clear Offline Cache</span>
-                </button>
-              </div>
-
-              {cacheClearedMsg && (
-                <div className="mt-2 text-xs text-emerald-500 font-bold text-center">
-                  Offline verse cache cleared successfully!
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -1577,45 +1587,101 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           )}
         </div>
 
-        {/* SUBGROUP 7: CONTACT & SUPPORT */}
-        <a
+        {/* SUBGROUP 7: CONTACT & SUPPORT (MERGED WITH OFFICIAL WEBSITE) */}
+        <div
           id="settings-contact-panel"
-          href="mailto:asornotes@gmail.com?subject=Bible%20Journal%20Feedback"
-          className={`block rounded-3xl border transition-all overflow-hidden shadow-xs group cursor-pointer ${
+          className={`rounded-3xl border transition-all overflow-hidden shadow-xs ${
             isPureBlack
-              ? 'bg-neutral-950 hover:bg-neutral-900 border-neutral-900 hover:border-neutral-800'
+              ? 'bg-neutral-950 border-neutral-900'
               : isNavy
-              ? 'bg-[#1c2541]/80 hover:bg-[#232f55] border-[#3a506b] hover:border-[#4f6d7a]'
+              ? 'bg-[#1c2541]/80 border-[#3a506b]'
               : isNeutralDark
-              ? 'bg-neutral-900/90 hover:bg-neutral-800/90 border-neutral-800 hover:border-neutral-700'
-              : 'bg-white hover:bg-stone-50 border-stone-200 hover:border-stone-300'
+              ? 'bg-neutral-900/90 border-neutral-800'
+              : 'bg-white border-stone-200'
           }`}
         >
-          <div className="w-full p-4 sm:p-5 flex items-center justify-between text-left">
+          {/* Panel Header */}
+          <div className="p-4 sm:p-5 border-b border-stone-200/60 dark:border-neutral-800/80 flex items-center justify-between">
             <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-10 h-10 rounded-2xl bg-blue-500/10 dark:bg-blue-500/20 flex items-center justify-center text-blue-500 shrink-0 group-hover:scale-105 transition-transform">
+              <div className="w-10 h-10 rounded-2xl bg-blue-500/10 dark:bg-blue-500/20 flex items-center justify-center text-blue-500 shrink-0">
                 <Mail className="w-5 h-5" />
               </div>
               <div className="min-w-0">
-                <h2 className="text-base font-bold tracking-tight group-hover:text-blue-500 transition-colors">
+                <h2 className="text-base font-bold tracking-tight">
                   Contact & Support
                 </h2>
                 <div className="text-xs opacity-60 truncate">
-                  asornotes@gmail.com • Feedback, suggestions & questions
+                  Official website, inquiries & feedback
                 </div>
               </div>
             </div>
-
-            <div className="flex items-center gap-2 shrink-0 ml-2">
-              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                asornotes@gmail.com
-              </span>
-              <div className="p-1.5 rounded-xl bg-stone-200/50 dark:bg-neutral-800 text-stone-600 dark:text-stone-300 group-hover:translate-x-0.5 transition-transform">
-                <ChevronRight className="w-4 h-4" />
-              </div>
-            </div>
           </div>
-        </a>
+
+          {/* Merged Items List */}
+          <div className="divide-y divide-stone-200/50 dark:divide-neutral-800/60">
+            {/* 1. Official Website */}
+            <a
+              id="settings-website-link"
+              href="https://asornotes.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-4 sm:p-5 flex items-center justify-between group hover:bg-stone-50/70 dark:hover:bg-neutral-800/40 transition-colors text-left"
+            >
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-red-500/10 dark:bg-red-500/20 flex items-center justify-center text-red-500 shrink-0 group-hover:scale-105 transition-transform">
+                  <Globe className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-bold tracking-tight group-hover:text-red-500 transition-colors">
+                    Official Website
+                  </div>
+                  <div className="text-xs opacity-60 truncate">
+                    Asornotes.com • Guides, updates & resources
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0 ml-2">
+                <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-500/10 text-red-600 dark:text-red-400">
+                  Asornotes.com
+                </span>
+                <div className="p-1.5 rounded-xl bg-stone-200/50 dark:bg-neutral-800 text-stone-600 dark:text-stone-300 group-hover:translate-x-0.5 transition-transform">
+                  <ChevronRight className="w-4 h-4" />
+                </div>
+              </div>
+            </a>
+
+            {/* 2. Email Support */}
+            <a
+              id="settings-email-link"
+              href="mailto:help@Asornotes.com?subject=Asor%20Notes%20Feedback"
+              className="p-4 sm:p-5 flex items-center justify-between group hover:bg-stone-50/70 dark:hover:bg-neutral-800/40 transition-colors text-left"
+            >
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 flex items-center justify-center text-blue-500 shrink-0 group-hover:scale-105 transition-transform">
+                  <Mail className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-bold tracking-tight group-hover:text-blue-500 transition-colors">
+                    Email Support
+                  </div>
+                  <div className="text-xs opacity-60 truncate">
+                    help@Asornotes.com • Feedback, suggestions & questions
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0 ml-2">
+                <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                  help@Asornotes.com
+                </span>
+                <div className="p-1.5 rounded-xl bg-stone-200/50 dark:bg-neutral-800 text-stone-600 dark:text-stone-300 group-hover:translate-x-0.5 transition-transform">
+                  <ChevronRight className="w-4 h-4" />
+                </div>
+              </div>
+            </a>
+          </div>
+        </div>
 
         {/* SUBGROUP 8: PRIVACY POLICY & COMPLIANCE */}
         <button

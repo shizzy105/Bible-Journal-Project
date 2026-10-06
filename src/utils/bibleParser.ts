@@ -372,11 +372,11 @@ export function createRefChipHtml(refText: string, format?: RefFormat): string {
   const strongsMatch = parseStrongsReference(refText);
   if (strongsMatch && strongsMatch.isValidRange) {
     const escapedContent = strongsMatch.id;
-    return `<span contenteditable="false" data-ref="${escapedContent}" data-strongs="${escapedContent}" role="button" tabindex="0" style="touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; pointer-events: auto; -webkit-tap-highlight-color: transparent; cursor: pointer;" class="ref-chip strongs-chip inline-block align-baseline mx-1 my-0 px-2 py-[1.5px] rounded-md bg-red-100 dark:bg-red-950/90 border border-red-200/50 dark:border-red-900/50 text-red-600 dark:text-red-400 font-semibold text-[0.88em] leading-normal select-none cursor-pointer whitespace-nowrap active:scale-95 transition-transform"><span class="ref-click-btn inline align-baseline hover:underline" style="pointer-events: auto; -webkit-user-select: none; user-select: none; border: none !important; outline: none !important; background: transparent !important; box-shadow: none !important;">${escapedContent}</span></span>`;
+    return `<span data-ref="${escapedContent}" data-strongs="${escapedContent}" style="touch-action: manipulation; -webkit-user-select: all; user-select: all; -webkit-touch-callout: none; pointer-events: auto; -webkit-tap-highlight-color: transparent; cursor: pointer;" class="ref-chip strongs-chip inline-block align-baseline mx-1 my-0 px-2 py-[1.5px] rounded-md bg-red-100 dark:bg-red-950/90 border border-red-200/50 dark:border-red-900/50 text-red-600 dark:text-red-400 font-semibold text-[0.88em] leading-normal cursor-pointer whitespace-nowrap active:scale-95 transition-transform"><span class="ref-click-btn inline align-baseline hover:underline" style="pointer-events: auto; -webkit-user-select: all; user-select: all; border: none !important; outline: none !important; background: transparent !important; box-shadow: none !important;">${escapedContent}</span></span>`;
   }
   const formattedText = formatRefString(refText, format);
   const escapedContent = formattedText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  return `<span contenteditable="false" data-ref="${escapedContent}" role="button" tabindex="0" style="touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; pointer-events: auto; -webkit-tap-highlight-color: transparent; cursor: pointer;" class="ref-chip inline-block align-baseline mx-1 my-0 px-2 py-[1.5px] rounded-md bg-red-100 dark:bg-red-950/90 border border-red-200/50 dark:border-red-900/50 text-red-600 dark:text-red-400 font-semibold text-[0.88em] leading-normal select-none cursor-pointer whitespace-nowrap active:scale-95 transition-transform"><span class="ref-click-btn inline align-baseline hover:underline" style="pointer-events: auto; -webkit-user-select: none; user-select: none; border: none !important; outline: none !important; background: transparent !important; box-shadow: none !important;">${escapedContent}</span></span>`;
+  return `<span data-ref="${escapedContent}" style="touch-action: manipulation; -webkit-user-select: all; user-select: all; -webkit-touch-callout: none; pointer-events: auto; -webkit-tap-highlight-color: transparent; cursor: pointer;" class="ref-chip inline-block align-baseline mx-1 my-0 px-2 py-[1.5px] rounded-md bg-red-100 dark:bg-red-950/90 border border-red-200/50 dark:border-red-900/50 text-red-600 dark:text-red-400 font-semibold text-[0.88em] leading-normal cursor-pointer whitespace-nowrap active:scale-95 transition-transform"><span class="ref-click-btn inline align-baseline hover:underline" style="pointer-events: auto; -webkit-user-select: all; user-select: all; border: none !important; outline: none !important; background: transparent !important; box-shadow: none !important;">${escapedContent}</span></span>`;
 }
 
 export function processHtmlWithReferences(html: string, format?: RefFormat): string {
@@ -396,6 +396,7 @@ export function processHtmlWithReferences(html: string, format?: RefFormat): str
         if (el.classList.contains('ref-click-btn')) {
           el.removeAttribute('data-ref');
           el.removeAttribute('data-strongs');
+          el.removeAttribute('contenteditable');
           el.classList.remove('ref-chip', 'strongs-chip');
           el.style.removeProperty('border');
           el.style.removeProperty('background');
@@ -409,21 +410,33 @@ export function processHtmlWithReferences(html: string, format?: RefFormat): str
           targetEl.style.removeProperty('background');
           targetEl.style.removeProperty('background-color');
           targetEl.style.removeProperty('color');
+          targetEl.removeAttribute('tabindex');
+          targetEl.removeAttribute('contenteditable');
+          if (targetEl.getAttribute('role') === 'button') {
+            targetEl.removeAttribute('role');
+          }
+          targetEl.style.webkitUserSelect = 'all';
+          targetEl.style.userSelect = 'all';
 
           // Clean up any inner .ref-click-btn that might have accidentally retained data-ref, data-strongs, or ref-chip class
           const innerBtn = targetEl.querySelector('.ref-click-btn');
           if (innerBtn) {
             innerBtn.removeAttribute('data-ref');
             innerBtn.removeAttribute('data-strongs');
+            innerBtn.removeAttribute('tabindex');
+            innerBtn.removeAttribute('role');
+            innerBtn.removeAttribute('contenteditable');
             innerBtn.classList.remove('ref-chip', 'strongs-chip');
             (innerBtn as HTMLElement).style.removeProperty('border');
             (innerBtn as HTMLElement).style.removeProperty('background');
             (innerBtn as HTMLElement).style.removeProperty('background-color');
+            (innerBtn as HTMLElement).style.webkitUserSelect = 'all';
+            (innerBtn as HTMLElement).style.userSelect = 'all';
           }
 
           // Normalize classes so existing pills always receive standard dark/light styling
           const isStrongs = targetEl.hasAttribute('data-strongs') || targetEl.classList.contains('strongs-chip');
-          targetEl.className = `ref-chip ${isStrongs ? 'strongs-chip ' : ''}inline-block align-baseline mx-1 my-0 px-2 py-[1.5px] rounded-md bg-red-100 dark:bg-red-950/90 border border-red-200/50 dark:border-red-900/50 text-red-600 dark:text-red-400 font-semibold text-[0.88em] leading-normal select-none cursor-pointer whitespace-nowrap active:scale-95 transition-transform`;
+          targetEl.className = `ref-chip ${isStrongs ? 'strongs-chip ' : ''}inline-block align-baseline mx-1 my-0 px-2 py-[1.5px] rounded-md bg-red-100 dark:bg-red-950/90 border border-red-200/50 dark:border-red-900/50 text-red-600 dark:text-red-400 font-semibold text-[0.88em] leading-normal cursor-pointer whitespace-nowrap active:scale-95 transition-transform`;
 
           const rawRef = targetEl.getAttribute('data-ref') || '';
           const matches = parseBibleReferences(rawRef);
@@ -436,6 +449,11 @@ export function processHtmlWithReferences(html: string, format?: RefFormat): str
             } else {
               targetEl.textContent = updatedRef;
             }
+          }
+          // Ensure every chip is immediately followed by a ZWSP text node for SwiftKey / Android IME stability
+          if (!targetEl.nextSibling || targetEl.nextSibling.nodeType !== Node.TEXT_NODE || !(targetEl.nextSibling.nodeValue?.startsWith('\uFEFF'))) {
+            const zwsp = doc.createTextNode('\uFEFF');
+            targetEl.parentNode?.insertBefore(zwsp, targetEl.nextSibling);
           }
           return;
         }
@@ -453,10 +471,8 @@ export function processHtmlWithReferences(html: string, format?: RefFormat): str
             }
             const wrapper = doc.createElement('div');
             wrapper.innerHTML = createRefChipHtml(m.fullMatch, targetFormat);
-            if (wrapper.firstElementChild) {
-              frag.appendChild(wrapper.firstElementChild);
-            } else {
-              frag.appendChild(doc.createTextNode(m.fullMatch));
+            while (wrapper.firstChild) {
+              frag.appendChild(wrapper.firstChild);
             }
             lastIndex = m.endIndex;
           });

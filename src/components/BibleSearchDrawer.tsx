@@ -32,6 +32,9 @@ interface BibleSearchDrawerProps {
   darkMode?: boolean;
   activeStrongsSearch?: StrongsSearchTarget | null;
   onClearStrongsSearch?: () => void;
+  hasActiveSearchSession?: boolean;
+  onResetSearchSession?: () => void;
+  initialQuery?: string;
 }
 
 const VISIBLE_CHUNK_SIZE = 40;
@@ -211,10 +214,13 @@ export const BibleSearchDrawer: React.FC<BibleSearchDrawerProps> = ({
   darkMode = false,
   activeStrongsSearch,
   onClearStrongsSearch,
+  hasActiveSearchSession,
+  onResetSearchSession,
+  initialQuery,
 }) => {
   // Decoupled raw input state (immediate, 0ms lag) vs debounced search query
-  const [inputVal, setInputVal] = useState<string>('');
-  const [debouncedQuery, setDebouncedQuery] = useState<string>('');
+  const [inputVal, setInputVal] = useState<string>(() => initialQuery || '');
+  const [debouncedQuery, setDebouncedQuery] = useState<string>(() => initialQuery || '');
 
   const [scope, setScope] = useState<SearchScope>('ALL');
   const [results, setResults] = useState<BibleSearchResult[]>([]);
@@ -228,24 +234,62 @@ export const BibleSearchDrawer: React.FC<BibleSearchDrawerProps> = ({
   const abortControllerRef = useRef<AbortController | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const justSelectedVerseRef = useRef<boolean>(false);
 
   const currentBookNum = useMemo(() => getBookNumber(currentBook), [currentBook]);
 
-  // Focus input when opened if not in Strong's mode, and pre-warm search data
+  // Synchronize initialQuery if passed from parent
+  useEffect(() => {
+    if (initialQuery && initialQuery.trim()) {
+      setInputVal(initialQuery);
+      setDebouncedQuery(initialQuery.trim());
+    }
+  }, [initialQuery]);
+
+  // Focus input when opened ONLY for a fresh search.
+  // When returning to view other search returns / verses, do NOT pop the keyboard up!
   useEffect(() => {
     if (isOpen) {
       warmupSearchData(currentTranslation);
-      if (!activeStrongsSearch) {
+
+      // If search session was dismissed outside (e.g. dismissed search banner), reset drawer for fresh search
+      if (hasActiveSearchSession === false && justSelectedVerseRef.current) {
+        justSelectedVerseRef.current = false;
+        setInputVal('');
+        setDebouncedQuery('');
+        setResults([]);
+      }
+
+      const isReturningToResults =
+        justSelectedVerseRef.current ||
+        Boolean(hasActiveSearchSession) ||
+        Boolean(activeStrongsSearch) ||
+        inputVal.trim().length > 0 ||
+        results.length > 0;
+
+      if (!isReturningToResults) {
+        // Fresh search: auto-focus input so keyboard comes up
         requestAnimationFrame(() => {
           inputRef.current?.focus();
         });
+      } else {
+        // Returning to view existing search returns: explicitly blur so keyboard stays down
+        if (inputRef.current) {
+          inputRef.current.blur();
+        }
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
       }
     } else {
       if (inputRef.current) {
         inputRef.current.blur();
       }
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
     }
-  }, [isOpen, activeStrongsSearch, currentTranslation]);
+  }, [isOpen, activeStrongsSearch, currentTranslation, hasActiveSearchSession]);
 
   // Reset visible count when results change
   useEffect(() => {
@@ -254,6 +298,7 @@ export const BibleSearchDrawer: React.FC<BibleSearchDrawerProps> = ({
 
   // Instant input typing handler + debounced search update
   const handleInputChange = (val: string) => {
+    justSelectedVerseRef.current = false;
     setInputVal(val);
 
     if (debounceTimerRef.current) {
@@ -401,6 +446,7 @@ export const BibleSearchDrawer: React.FC<BibleSearchDrawerProps> = ({
   }, [onClose]);
 
   const handleSelectVerse = useCallback((res: BibleSearchResult) => {
+    justSelectedVerseRef.current = true;
     if (inputRef.current) {
       inputRef.current.blur();
     }
@@ -521,7 +567,14 @@ export const BibleSearchDrawer: React.FC<BibleSearchDrawerProps> = ({
             {inputVal && (
               <button
                 type="button"
-                onClick={() => handleInputChange('')}
+                onClick={() => {
+                  justSelectedVerseRef.current = false;
+                  handleInputChange('');
+                  onResetSearchSession?.();
+                  requestAnimationFrame(() => {
+                    inputRef.current?.focus();
+                  });
+                }}
                 className="absolute right-2.5 p-1 rounded-md text-stone-400 hover:text-stone-600 dark:hover:text-stone-200"
                 title="Clear query"
               >

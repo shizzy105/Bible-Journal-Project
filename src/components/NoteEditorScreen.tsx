@@ -30,6 +30,7 @@ import {
   TextSelect,
   Copy,
   Scissors,
+  List,
 } from 'lucide-react';
 import {
   JournalEntry,
@@ -55,6 +56,7 @@ import { VoiceRecorderModal } from './VoiceRecorderModal';
 import { DrawingCanvasModal } from './DrawingCanvasModal';
 import { InsertReferenceModal } from './InsertReferenceModal';
 import { QuickBibleReaderModal } from './QuickBibleReaderModal';
+import { DatePickerModal } from './DatePickerModal';
 import { ImageBlockItem } from './ImageBlockItem';
 import { parseStrongsReference } from '../data/strongsData';
 import { prefetchBook } from '../data/bibleData';
@@ -318,7 +320,343 @@ const TextBlockItem: React.FC<TextBlockItemProps> = ({
   const editorRef = useRef<HTMLDivElement | null>(null);
   const isInitialMount = useRef(true);
   const lastTapHandledRef = useRef<number>(0);
+  const lastChipDeletedTimeRef = useRef<number>(0);
   const touchStartPosRef = useRef<{ x: number; y: number; time: number; target: HTMLElement | null } | null>(null);
+
+  // Check and clean any partially deleted or damaged reference chips (WhatsApp-style 1-Tap Instant Wipeout)
+  const cleanupDamagedRefChips = (): boolean => {
+    if (!editorRef.current) return false;
+    const chips = editorRef.current.querySelectorAll<HTMLElement>('[data-ref], .ref-chip');
+    let removedAny = false;
+
+    chips.forEach((chip) => {
+      const expectedRef = (chip.getAttribute('data-ref') || chip.getAttribute('data-strongs') || '').trim();
+      const currentText = (chip.textContent || '').trim();
+
+      // If the text inside the chip was altered or partially backspaced
+      if (expectedRef && currentText !== expectedRef) {
+        lastChipDeletedTimeRef.current = Date.now();
+        const parent = chip.parentNode;
+        const prevSibling = chip.previousSibling;
+        const nextSibling = chip.nextSibling;
+
+        chip.remove();
+        removedAny = true;
+
+        // Position caret cleanly right where the chip was
+        const sel = window.getSelection();
+        if (sel && editorRef.current) {
+          const newRange = document.createRange();
+          if (prevSibling) {
+            if (prevSibling.nodeType === Node.TEXT_NODE) {
+              const len = (prevSibling.nodeValue || '').length;
+              newRange.setStart(prevSibling, len);
+            } else {
+              newRange.setStartAfter(prevSibling);
+            }
+          } else if (nextSibling) {
+            if (nextSibling.nodeType === Node.TEXT_NODE) {
+              newRange.setStart(nextSibling, 0);
+            } else {
+              newRange.setStartBefore(nextSibling);
+            }
+          } else if (parent && parent.contains(editorRef.current)) {
+            newRange.setStart(editorRef.current, 0);
+          } else if (parent) {
+            const br = document.createElement('br');
+            parent.appendChild(br);
+            newRange.setStart(parent, 0);
+          }
+          newRange.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(newRange);
+        }
+      }
+    });
+
+    if (removedAny) {
+      if (editorRef.current) {
+        editorRef.current.focus({ preventScroll: true });
+        if (editorRef.current.childNodes.length === 0) {
+          editorRef.current.appendChild(document.createElement('br'));
+        }
+        onChange(editorRef.current.innerHTML);
+        onSelectionChange?.();
+      }
+      return true;
+    }
+    return false;
+  };
+
+  // Helper to reliably delete adjacent reference chips on Backspace/Delete across mobile keyboards (SwiftKey, Gboard, Samsung)
+  const tryDeleteAdjacentRefChip = (direction: 'backward' | 'forward'): boolean => {
+    if (!editorRef.current) return false;
+    if (Date.now() - lastChipDeletedTimeRef.current < 80) {
+      return true;
+    }
+
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return false;
+
+    const range = sel.getRangeAt(0);
+
+    // If an active selection spans or contains a reference chip
+    if (!range.collapsed) {
+      const fragment = range.cloneContents();
+      const chipsInSelection = fragment.querySelectorAll('[data-ref], .ref-chip');
+      if (chipsInSelection.length > 0) {
+        lastChipDeletedTimeRef.current = Date.now();
+        range.deleteContents();
+        if (editorRef.current) {
+          editorRef.current.focus({ preventScroll: true });
+          if (!editorRef.current.innerHTML.trim()) {
+            editorRef.current.innerHTML = '<br>';
+          }
+          onChange(editorRef.current.innerHTML);
+          onSelectionChange?.();
+        }
+        return true;
+      }
+      return false;
+    }
+
+    const anchorNode = sel.anchorNode;
+    const offset = sel.anchorOffset;
+    if (!anchorNode || !editorRef.current.contains(anchorNode)) return false;
+
+    let targetChip: HTMLElement | null = null;
+
+    // Check if the caret is directly inside or on a chip
+    const chipAncestor = (
+      anchorNode.nodeType === Node.ELEMENT_NODE
+        ? (anchorNode as HTMLElement).closest('[data-ref], .ref-chip')
+        : anchorNode.parentElement?.closest('[data-ref], .ref-chip')
+    ) as HTMLElement | null;
+
+    if (chipAncestor && editorRef.current.contains(chipAncestor)) {
+      targetChip = chipAncestor;
+    }
+
+    if (!targetChip && direction === 'backward') {
+      // 1. If anchorNode is an Element
+      if (anchorNode.nodeType === Node.ELEMENT_NODE) {
+        const el = anchorNode as HTMLElement;
+        let idx = offset - 1;
+        while (idx >= 0) {
+          const child = el.childNodes[idx];
+          if (child && child.nodeType === Node.TEXT_NODE && /^[\s\u200B\u00A0\uFEFF]*$/.test(child.nodeValue || '')) {
+            idx--;
+            continue;
+          }
+          if (child && child.nodeType === Node.ELEMENT_NODE) {
+            const htmlChild = child as HTMLElement;
+            if (htmlChild.matches?.('[data-ref], .ref-chip') || htmlChild.querySelector?.('[data-ref], .ref-chip')) {
+              targetChip = (htmlChild.matches?.('[data-ref], .ref-chip') ? htmlChild : htmlChild.querySelector?.('[data-ref], .ref-chip')) as HTMLElement;
+              // Clean any whitespace text nodes that were between cursor and chip
+              for (let w = idx + 1; w < offset; w++) {
+                (el.childNodes[w] as unknown as ChildNode | null)?.remove();
+              }
+            }
+          }
+          break;
+        }
+
+        // If cursor is at start of element, look at previous siblings
+        if (!targetChip && idx < 0) {
+          let prev = el.previousSibling;
+          while (prev && prev.nodeType === Node.TEXT_NODE && /^[\s\u200B\u00A0\uFEFF]*$/.test(prev.nodeValue || '')) {
+            prev = prev.previousSibling;
+          }
+          if (prev && prev.nodeType === Node.ELEMENT_NODE) {
+            const htmlPrev = prev as HTMLElement;
+            if (htmlPrev.matches?.('[data-ref], .ref-chip') || htmlPrev.querySelector?.('[data-ref], .ref-chip')) {
+              targetChip = (htmlPrev.matches?.('[data-ref], .ref-chip') ? htmlPrev : htmlPrev.querySelector?.('[data-ref], .ref-chip')) as HTMLElement;
+            }
+          }
+        }
+      }
+
+      // 2. If anchorNode is a Text Node
+      if (!targetChip && anchorNode.nodeType === Node.TEXT_NODE) {
+        const text = anchorNode.nodeValue || '';
+        const precedingText = text.slice(0, offset);
+
+        if (/^[\s\u200B\u00A0\uFEFF]*$/.test(precedingText)) {
+          let prev = anchorNode.previousSibling;
+          while (prev && prev.nodeType === Node.TEXT_NODE && /^[\s\u200B\u00A0\uFEFF]*$/.test(prev.nodeValue || '')) {
+            prev = prev.previousSibling;
+          }
+          if (prev && prev.nodeType === Node.ELEMENT_NODE) {
+            const htmlPrev = prev as HTMLElement;
+            if (htmlPrev.matches?.('[data-ref], .ref-chip') || htmlPrev.querySelector?.('[data-ref], .ref-chip')) {
+              targetChip = (htmlPrev.matches?.('[data-ref], .ref-chip') ? htmlPrev : htmlPrev.querySelector?.('[data-ref], .ref-chip')) as HTMLElement;
+              if (offset > 0) {
+                anchorNode.nodeValue = text.slice(offset);
+              }
+            }
+          }
+        }
+
+        // Check if text node is inside an inline element whose previous sibling is a chip
+        if (!targetChip && /^[\s\u200B\u00A0\uFEFF]*$/.test(precedingText)) {
+          let curr: Node | null = anchorNode;
+          while (curr && curr.parentNode && curr.parentNode !== editorRef.current && !curr.previousSibling) {
+            curr = curr.parentNode;
+          }
+          if (curr && curr.previousSibling) {
+            let prev: Node | null = curr.previousSibling;
+            while (prev && prev.nodeType === Node.TEXT_NODE && /^[\s\u200B\u00A0\uFEFF]*$/.test(prev.nodeValue || '')) {
+              prev = prev.previousSibling;
+            }
+            if (prev && prev.nodeType === Node.ELEMENT_NODE) {
+              const htmlPrev = prev as HTMLElement;
+              if (htmlPrev.matches?.('[data-ref], .ref-chip') || htmlPrev.querySelector?.('[data-ref], .ref-chip')) {
+                targetChip = (htmlPrev.matches?.('[data-ref], .ref-chip') ? htmlPrev : htmlPrev.querySelector?.('[data-ref], .ref-chip')) as HTMLElement;
+                if (offset > 0) {
+                  anchorNode.nodeValue = text.slice(offset);
+                }
+              }
+            }
+          }
+        }
+      }
+    } else if (!targetChip && direction === 'forward') {
+      // Forward delete
+      if (anchorNode.nodeType === Node.ELEMENT_NODE) {
+        const el = anchorNode as HTMLElement;
+        let idx = offset;
+        while (idx < el.childNodes.length) {
+          const child = el.childNodes[idx];
+          if (child && child.nodeType === Node.TEXT_NODE && /^[\s\u200B\u00A0\uFEFF]*$/.test(child.nodeValue || '')) {
+            idx++;
+            continue;
+          }
+          if (child && child.nodeType === Node.ELEMENT_NODE) {
+            const htmlChild = child as HTMLElement;
+            if (htmlChild.matches?.('[data-ref], .ref-chip') || htmlChild.querySelector?.('[data-ref], .ref-chip')) {
+              targetChip = (htmlChild.matches?.('[data-ref], .ref-chip') ? htmlChild : htmlChild.querySelector?.('[data-ref], .ref-chip')) as HTMLElement;
+              for (let w = offset; w < idx; w++) {
+                (el.childNodes[w] as unknown as ChildNode | null)?.remove();
+              }
+            }
+          }
+          break;
+        }
+      }
+
+      if (!targetChip && anchorNode.nodeType === Node.TEXT_NODE) {
+        const text = anchorNode.nodeValue || '';
+        const followingText = text.slice(offset);
+        if (/^[\s\u200B\u00A0\uFEFF]*$/.test(followingText)) {
+          let next = anchorNode.nextSibling;
+          while (next && next.nodeType === Node.TEXT_NODE && /^[\s\u200B\u00A0\uFEFF]*$/.test(next.nodeValue || '')) {
+            next = next.nextSibling;
+          }
+          if (next && next.nodeType === Node.ELEMENT_NODE) {
+            const htmlNext = next as HTMLElement;
+            if (htmlNext.matches?.('[data-ref], .ref-chip') || htmlNext.querySelector?.('[data-ref], .ref-chip')) {
+              targetChip = (htmlNext.matches?.('[data-ref], .ref-chip') ? htmlNext : htmlNext.querySelector?.('[data-ref], .ref-chip')) as HTMLElement;
+              if (followingText.length > 0) {
+                anchorNode.nodeValue = text.slice(0, offset);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (!targetChip || !editorRef.current.contains(targetChip)) {
+      return false;
+    }
+
+    lastChipDeletedTimeRef.current = Date.now();
+
+    const parent = targetChip.parentNode as HTMLElement | null;
+    if (!parent) return false;
+
+    const prevSibling = targetChip.previousSibling;
+    let nextSibling = targetChip.nextSibling;
+
+    // Clean up any immediately adjacent trailing ZWSP text node so it doesn't leave orphaned invisible chars
+    if (nextSibling && nextSibling.nodeType === Node.TEXT_NODE && /^[\s\u200B\u00A0\uFEFF]*$/.test(nextSibling.nodeValue || '')) {
+      const tempNext = nextSibling.nextSibling;
+      nextSibling.remove();
+      nextSibling = tempNext;
+    }
+
+    targetChip.remove();
+
+    // Re-affirm focus immediately so SwiftKey / Android IME keeps the keyboard active
+    editorRef.current.focus({ preventScroll: true });
+
+    const newRange = document.createRange();
+
+    if (direction === 'backward') {
+      if (prevSibling) {
+        if (prevSibling.nodeType === Node.TEXT_NODE) {
+          const len = (prevSibling.nodeValue || '').length;
+          newRange.setStart(prevSibling, len);
+          newRange.collapse(true);
+        } else {
+          newRange.setStartAfter(prevSibling);
+          newRange.collapse(true);
+        }
+      } else if (nextSibling) {
+        if (nextSibling.nodeType === Node.TEXT_NODE) {
+          newRange.setStart(nextSibling, 0);
+          newRange.collapse(true);
+        } else {
+          newRange.setStartBefore(nextSibling);
+          newRange.collapse(true);
+        }
+      } else {
+        const br = document.createElement('br');
+        parent.appendChild(br);
+        newRange.setStart(parent, 0);
+        newRange.collapse(true);
+      }
+    } else {
+      if (nextSibling) {
+        if (nextSibling.nodeType === Node.TEXT_NODE) {
+          newRange.setStart(nextSibling, 0);
+          newRange.collapse(true);
+        } else {
+          newRange.setStartBefore(nextSibling);
+          newRange.collapse(true);
+        }
+      } else if (prevSibling) {
+        if (prevSibling.nodeType === Node.TEXT_NODE) {
+          const len = (prevSibling.nodeValue || '').length;
+          newRange.setStart(prevSibling, len);
+          newRange.collapse(true);
+        } else {
+          newRange.setStartAfter(prevSibling);
+          newRange.collapse(true);
+        }
+      } else {
+        const br = document.createElement('br');
+        parent.appendChild(br);
+        newRange.setStart(parent, 0);
+        newRange.collapse(true);
+      }
+    }
+
+    sel.removeAllRanges();
+    sel.addRange(newRange);
+
+    // Keep editor focused after range placement
+    editorRef.current.focus({ preventScroll: true });
+
+    if (editorRef.current) {
+      if (editorRef.current.childNodes.length === 0) {
+        editorRef.current.appendChild(document.createElement('br'));
+      }
+      onChange(editorRef.current.innerHTML);
+      onSelectionChange?.();
+    }
+
+    return true;
+  };
 
   // Helper to place caret at tapped coordinates or end of contenteditable element safely
   const focusEditorAndPlaceCaret = (clientX?: number, clientY?: number) => {
@@ -328,6 +666,23 @@ const TextBlockItem: React.FC<TextBlockItemProps> = ({
 
       if (editorRef.current.childNodes.length === 0 || editorRef.current.innerHTML === '') {
         editorRef.current.innerHTML = '<br>';
+      }
+
+      const isBlank =
+        editorRef.current.innerHTML === '<br>' ||
+        editorRef.current.innerHTML === '<br/>' ||
+        !editorRef.current.innerText.trim();
+
+      if (isBlank) {
+        const sel = window.getSelection();
+        if (sel) {
+          const range = document.createRange();
+          range.setStart(editorRef.current, 0);
+          range.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(range);
+          return;
+        }
       }
 
       if (clientX !== undefined && clientY !== undefined) {
@@ -347,13 +702,8 @@ const TextBlockItem: React.FC<TextBlockItemProps> = ({
       const sel = window.getSelection();
       if (sel) {
         const range = document.createRange();
-        if (editorRef.current.innerHTML === '<br>' || editorRef.current.innerHTML === '<br/>') {
-          range.setStart(editorRef.current, 0);
-          range.collapse(true);
-        } else {
-          range.selectNodeContents(editorRef.current);
-          range.collapse(false);
-        }
+        range.selectNodeContents(editorRef.current);
+        range.collapse(false);
         sel.removeAllRanges();
         sel.addRange(range);
       }
@@ -388,7 +738,8 @@ const TextBlockItem: React.FC<TextBlockItemProps> = ({
       editorRef.current.innerHTML === block.content ||
       (block.content === '' && (editorRef.current.innerHTML === '<br>' || editorRef.current.innerHTML === '<br/>')) ||
       document.activeElement === editorRef.current ||
-      isModalOpen
+      isModalOpen ||
+      Date.now() - lastChipDeletedTimeRef.current < 800
     ) {
       return;
     }
@@ -495,21 +846,426 @@ const TextBlockItem: React.FC<TextBlockItemProps> = ({
       }
     };
 
+    const onNativeBeforeInput = (e: Event) => {
+      const inputEvent = e as InputEvent;
+      if (!inputEvent || !inputEvent.inputType) return;
+      if (
+        inputEvent.inputType === 'deleteContentBackward' ||
+        inputEvent.inputType === 'deleteWordBackward' ||
+        inputEvent.inputType === 'deleteSoftLineBackward' ||
+        inputEvent.inputType === 'deleteHardLineBackward' ||
+        inputEvent.inputType === 'deleteEntireSoftLine' ||
+        inputEvent.inputType === 'deleteContent'
+      ) {
+        // Inspect target ranges if provided by Android / Chromium IME
+        let chipTarget: HTMLElement | null = null;
+        if (typeof inputEvent.getTargetRanges === 'function') {
+          try {
+            const ranges = inputEvent.getTargetRanges();
+            for (const r of ranges) {
+              const sc = r.startContainer;
+              const ec = r.endContainer;
+              const chip1 = (sc.nodeType === Node.ELEMENT_NODE ? (sc as HTMLElement) : sc.parentElement)?.closest('[data-ref], .ref-chip');
+              const chip2 = (ec.nodeType === Node.ELEMENT_NODE ? (ec as HTMLElement) : ec.parentElement)?.closest('[data-ref], .ref-chip');
+              chipTarget = (chip1 || chip2) as HTMLElement | null;
+              if (chipTarget) break;
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        if (chipTarget && editorRef.current?.contains(chipTarget)) {
+          lastChipDeletedTimeRef.current = Date.now();
+          const prev = chipTarget.previousSibling;
+          chipTarget.remove();
+          if (inputEvent.cancelable) {
+            inputEvent.preventDefault();
+          }
+          inputEvent.stopPropagation();
+          if (editorRef.current) {
+            editorRef.current.focus({ preventScroll: true });
+            const sel = window.getSelection();
+            if (sel) {
+              const nr = document.createRange();
+              if (prev) {
+                if (prev.nodeType === Node.TEXT_NODE) {
+                  nr.setStart(prev, (prev.nodeValue || '').length);
+                } else {
+                  nr.setStartAfter(prev);
+                }
+              } else {
+                nr.setStart(editorRef.current, 0);
+              }
+              nr.collapse(true);
+              sel.removeAllRanges();
+              sel.addRange(nr);
+            }
+            if (editorRef.current.childNodes.length === 0) {
+              editorRef.current.appendChild(document.createElement('br'));
+            }
+            onChange(editorRef.current.innerHTML);
+            onSelectionChange?.();
+          }
+          return;
+        }
+
+        if (tryDeleteAdjacentRefChip('backward')) {
+          if (inputEvent.cancelable) {
+            inputEvent.preventDefault();
+          }
+          inputEvent.stopPropagation();
+        }
+      } else if (
+        inputEvent.inputType === 'deleteContentForward' ||
+        inputEvent.inputType === 'deleteWordForward' ||
+        inputEvent.inputType === 'deleteSoftLineForward' ||
+        inputEvent.inputType === 'deleteHardLineForward'
+      ) {
+        if (tryDeleteAdjacentRefChip('forward')) {
+          if (inputEvent.cancelable) {
+            inputEvent.preventDefault();
+          }
+          inputEvent.stopPropagation();
+        }
+      } else if (inputEvent.inputType && inputEvent.inputType.startsWith('insert')) {
+        // Prevent typing text or spaces inside the chip badge:
+        const sel = window.getSelection();
+        if (sel && sel.anchorNode) {
+          const chip = (
+            sel.anchorNode.nodeType === Node.ELEMENT_NODE
+              ? (sel.anchorNode as HTMLElement)
+              : sel.anchorNode.parentElement
+          )?.closest('[data-ref], .ref-chip') as HTMLElement | null;
+          if (chip && editorRef.current?.contains(chip)) {
+            let nextTextNode: Text | null = null;
+            if (chip.nextSibling && chip.nextSibling.nodeType === Node.TEXT_NODE) {
+              nextTextNode = chip.nextSibling as Text;
+            } else {
+              nextTextNode = document.createTextNode('\u00A0');
+              (chip as unknown as ChildNode).after(nextTextNode);
+            }
+            const textVal = nextTextNode.nodeValue || '';
+            if (!textVal) {
+              nextTextNode.nodeValue = '\u00A0';
+            }
+            const r = document.createRange();
+            const caretPos = /^[\s\u00A0]/.test(nextTextNode.nodeValue || '') ? 1 : (nextTextNode.nodeValue || '').length;
+            r.setStart(nextTextNode, Math.min(caretPos, (nextTextNode.nodeValue || '').length));
+            r.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(r);
+          }
+        }
+      }
+    };
+
+    const mutationObserver = new MutationObserver(() => {
+      cleanupDamagedRefChips();
+    });
+    mutationObserver.observe(el, {
+      characterData: true,
+      childList: true,
+      subtree: true,
+    });
+
     el.addEventListener('touchstart', onTouchStartCapture, { capture: true, passive: false });
     el.addEventListener('touchmove', onTouchMoveCapture, { capture: true, passive: true });
     el.addEventListener('touchend', onTouchEndCapture, { capture: true, passive: false });
     el.addEventListener('click', onClickCapture, { capture: true });
+    el.addEventListener('beforeinput', onNativeBeforeInput as EventListener, { capture: true });
 
     return () => {
+      mutationObserver.disconnect();
       el.removeEventListener('touchstart', onTouchStartCapture, { capture: true });
       el.removeEventListener('touchmove', onTouchMoveCapture, { capture: true });
       el.removeEventListener('touchend', onTouchEndCapture, { capture: true });
       el.removeEventListener('click', onClickCapture, { capture: true });
+      el.removeEventListener('beforeinput', onNativeBeforeInput as EventListener, { capture: true });
     };
   }, [onOpenVerse]);
 
   const handleInput = () => {
     if (!editorRef.current) return;
+
+    // 1-Tap Instant Wipeout: clean any partially deleted chips immediately
+    if (cleanupDamagedRefChips()) {
+      return;
+    }
+
+    // Check for inline shortcuts before general input handling
+    try {
+      const sel = window.getSelection();
+      if (sel && sel.isCollapsed && sel.anchorNode) {
+        const anchorNode = sel.anchorNode;
+        if (anchorNode.nodeType === Node.TEXT_NODE) {
+          const text = anchorNode.nodeValue || '';
+          const offset = sel.anchorOffset;
+
+          // 0. Instant Scripture / Strong's Trigger Shortcut: typing '//' or '..' right after a valid reference converts it to an interactive pill
+          const textBeforeCursor = text.slice(0, offset);
+          let triggerType: '//' | '..' | null = null;
+          if (textBeforeCursor.endsWith('//')) {
+            triggerType = '//';
+          } else if (textBeforeCursor.endsWith('..') && !textBeforeCursor.endsWith('...')) {
+            triggerType = '..';
+          }
+
+          if (triggerType) {
+            const rawCandidate = textBeforeCursor.slice(0, -2);
+            // Ignore if looks like a web protocol e.g. https:, http:, ftp:
+            if (!/(?:https?|ftp):$/i.test(rawCandidate.trim())) {
+              // 1. Check for Strong's concordance code e.g. H1234 or G2424
+              const strongsMatch = rawCandidate.match(/(?:^|\s|\b)([HGhg]\d{1,5})\s*$/);
+              let matchedRefStr: string | null = null;
+              let matchStartIdx = -1;
+
+              if (strongsMatch) {
+                const parsedStrongs = parseStrongsReference(strongsMatch[1]);
+                if (parsedStrongs && parsedStrongs.isValidRange) {
+                  matchedRefStr = parsedStrongs.id;
+                  matchStartIdx = rawCandidate.lastIndexOf(strongsMatch[1]);
+                }
+              }
+
+              // 2. If not Strong's, check Bible Reference
+              if (!matchedRefStr) {
+                const bibleMatches = parseBibleReferences(rawCandidate);
+                if (bibleMatches.length > 0) {
+                  const lastMatch = bibleMatches[bibleMatches.length - 1];
+                  const trimmedCandidate = rawCandidate.trimEnd();
+                  if (lastMatch.endIndex === trimmedCandidate.length) {
+                    matchedRefStr = lastMatch.fullMatch;
+                    matchStartIdx = lastMatch.startIndex;
+                  }
+                }
+              }
+
+              if (matchedRefStr && matchStartIdx !== -1) {
+                const beforeVerseText = text.slice(0, matchStartIdx);
+                const afterTriggerText = text.slice(offset);
+
+                const chipHtml = createRefChipHtml(matchedRefStr);
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = chipHtml;
+                const chipEl = tempDiv.firstElementChild as HTMLElement;
+
+                if (chipEl) {
+                  const trailingText = '\u00A0' + (afterTriggerText ? afterTriggerText.replace(/^ /, '\u00A0') : '');
+                  const trailingNode = document.createTextNode(trailingText);
+
+                  if (beforeVerseText.length > 0) {
+                    anchorNode.nodeValue = beforeVerseText;
+                    (anchorNode as unknown as ChildNode).after(chipEl);
+                  } else {
+                    (anchorNode as unknown as ChildNode).replaceWith(chipEl);
+                  }
+                  (chipEl as unknown as ChildNode).after(trailingNode);
+
+                  // Position cursor cleanly in trailingNode after the non-breaking space
+                  const newRange = document.createRange();
+                  newRange.setStart(trailingNode, 1);
+                  newRange.collapse(true);
+                  sel.removeAllRanges();
+                  sel.addRange(newRange);
+
+                  if (editorRef.current) {
+                    editorRef.current.focus({ preventScroll: true });
+                    const newHtml = editorRef.current.innerHTML;
+                    onChange(newHtml);
+                    onSelectionChange?.();
+                  }
+                  return;
+                }
+              }
+            }
+          }
+
+          // 1. Triple Hyphen Divider: '---' on a line -> replace with clean <hr class="note-divider">
+          if (text === '---' || text.endsWith('\n---') || /(?:^|\n)\s*---$/.test(text)) {
+            // Find current position and replace '---' with a divider
+            const matchIndex = text.lastIndexOf('---');
+            if (matchIndex !== -1 && offset >= matchIndex + 3) {
+              const beforeText = text.slice(0, matchIndex).replace(/\n+$/, '');
+              const afterText = text.slice(matchIndex + 3).replace(/^\n+/, '');
+
+              const hr = document.createElement('hr');
+              hr.className = 'note-divider';
+              const nextLine = document.createElement('div');
+              if (afterText.trim().length > 0) {
+                nextLine.textContent = afterText;
+              } else {
+                nextLine.innerHTML = '<br>';
+              }
+
+              // Determine the top-level block inside editorRef
+              let topBlock: HTMLElement | null = null;
+              let curr: Node | null = anchorNode;
+              while (curr && curr.parentNode !== editorRef.current) {
+                curr = curr.parentNode;
+              }
+              if (curr && curr.nodeType === Node.ELEMENT_NODE) {
+                topBlock = curr as HTMLElement;
+              }
+
+              const parentEl = anchorNode.parentElement;
+              const isDirectChild = parentEl === editorRef.current || !topBlock;
+
+              const childAnchor = anchorNode as unknown as ChildNode;
+
+              if (isDirectChild) {
+                // anchorNode is a direct child of editorRef.current
+                if (beforeText.trim().length > 0) {
+                  anchorNode.nodeValue = beforeText;
+                  childAnchor.after(hr);
+                  hr.after(nextLine);
+                } else {
+                  // Remove any previous <br> before this anchorNode
+                  const prev = anchorNode.previousSibling as unknown as ChildNode | null;
+                  if (prev && (prev as unknown as Node).nodeName === 'BR') {
+                    prev.remove();
+                  }
+                  childAnchor.replaceWith(hr);
+                  hr.after(nextLine);
+                }
+              } else {
+                // anchorNode is inside topBlock (e.g. a div, p, li)
+                // Check if topBlock only contained '---'
+                const blockText = (topBlock.innerText || '').replace(/[\u200B\u00A0\s-]/g, '');
+                const hasMedia = !!topBlock.querySelector('img, audio, video, [data-ref]');
+
+                if (!blockText && !hasMedia) {
+                  // The block was only holding '---' (and whitespace/br)
+                  topBlock.replaceWith(hr);
+                  hr.after(nextLine);
+                } else {
+                  // topBlock has preceding text (e.g. Paragraph <br> ---)
+                  if (beforeText.trim().length > 0) {
+                    anchorNode.nodeValue = beforeText;
+                  } else {
+                    const prev = anchorNode.previousSibling as unknown as ChildNode | null;
+                    if (prev && (prev as unknown as Node).nodeName === 'BR') {
+                      prev.remove();
+                    }
+                    childAnchor.remove();
+                  }
+                  topBlock.after(hr);
+                  hr.after(nextLine);
+                }
+              }
+
+              // Move cursor cleanly to the new line below the divider
+              const newRange = document.createRange();
+              newRange.setStart(nextLine, 0);
+              newRange.collapse(true);
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+
+              let newHtml = editorRef.current.innerHTML;
+              onChange(newHtml);
+              onSelectionChange?.();
+              return;
+            }
+          }
+
+          // 2. Bullet shortcut: typing '- ' or '* ' at start of line -> convert to <ul><li>
+          if (
+            (text === '- ' || text === '* ' || text === '-\u00A0' || text === '*\u00A0' ||
+             text.endsWith('\n- ') || text.endsWith('\n* ') || text.endsWith('\n-\u00A0') || text.endsWith('\n*\u00A0')) &&
+            !anchorNode.parentElement?.closest('li')
+          ) {
+            const parentBlock = (anchorNode.parentElement?.closest('div, p') || anchorNode.parentElement) as HTMLElement | null;
+
+            // Clean the trigger text from the text node
+            const triggerIdx = text.lastIndexOf('-');
+            const starIdx = text.lastIndexOf('*');
+            const cutIdx = Math.max(triggerIdx, starIdx);
+            const preservedText = cutIdx > 0 ? text.slice(0, cutIdx).replace(/\n+$/, '') : '';
+
+            // Create target <ul> and <li>
+            const ul = document.createElement('ul');
+            const li = document.createElement('li');
+            li.innerHTML = '<br>';
+            ul.appendChild(li);
+
+            if (parentBlock && editorRef.current.contains(parentBlock) && parentBlock !== editorRef.current) {
+              if (preservedText.trim().length > 0) {
+                // If there was preceding text inside the same paragraph (e.g. user hit Enter creating a <br> or newline)
+                anchorNode.nodeValue = preservedText;
+                // Remove trailing <br> elements right before the bullet
+                let prev = anchorNode.nextSibling;
+                while (prev && prev.nodeName === 'BR') {
+                  const toRemove = prev;
+                  prev = prev.nextSibling;
+                  toRemove.remove();
+                }
+                parentBlock.after(ul);
+              } else if (parentBlock.previousSibling || parentBlock.nextSibling) {
+                // Empty paragraph block: replace this paragraph with <ul>
+                parentBlock.replaceWith(ul);
+              } else {
+                // It's the only block, append list
+                parentBlock.replaceWith(ul);
+              }
+            } else {
+              // Direct child of editorRef
+              if (preservedText.trim().length > 0) {
+                anchorNode.nodeValue = preservedText;
+                editorRef.current.appendChild(ul);
+              } else {
+                anchorNode.nodeValue = '';
+                editorRef.current.appendChild(ul);
+              }
+            }
+
+            // Place caret cleanly inside the new <li>
+            const newRange = document.createRange();
+            newRange.setStart(li, 0);
+            newRange.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+
+            let newHtml = editorRef.current.innerHTML;
+            onChange(newHtml);
+            onSelectionChange?.();
+            return;
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    // Ensure chips never absorb stray spaces inside their badge
+    if (editorRef.current) {
+      const chips = editorRef.current.querySelectorAll<HTMLElement>('[data-ref], .ref-chip');
+      chips.forEach((chip) => {
+        const expected = (chip.getAttribute('data-ref') || chip.getAttribute('data-strongs') || '').trim();
+        const clickBtn = (chip.querySelector('.ref-click-btn') as HTMLElement | null) || chip;
+        const currentRaw = clickBtn.textContent || '';
+        if (expected && currentRaw !== expected && currentRaw.trim() === expected) {
+          const extraSpaces = currentRaw.slice(expected.length);
+          clickBtn.textContent = expected;
+          let nextNode = chip.nextSibling;
+          if (nextNode && nextNode.nodeType === Node.TEXT_NODE) {
+            nextNode.nodeValue = extraSpaces + (nextNode.nodeValue || '');
+          } else {
+            const newTextNode = document.createTextNode(extraSpaces || '\u00A0');
+            (chip as unknown as ChildNode).after(newTextNode);
+            nextNode = newTextNode;
+          }
+          const sel = window.getSelection();
+          if (sel && nextNode) {
+            const r = document.createRange();
+            r.setStart(nextNode, (nextNode.nodeValue || '').length);
+            r.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(r);
+          }
+        }
+      });
+    }
+
     let html = editorRef.current.innerHTML;
     if (html === '<br>' || html === '<br/>' || !editorRef.current.innerText.trim()) {
       html = '';
@@ -538,6 +1294,11 @@ const TextBlockItem: React.FC<TextBlockItemProps> = ({
   const handleBlur = () => {
     if (!editorRef.current) return;
     if (isModalOpen) return;
+    // Prevent accidental blur during chip deletion across Android IMEs (SwiftKey, Gboard, Samsung)
+    if (Date.now() - lastChipDeletedTimeRef.current < 500) {
+      editorRef.current.focus({ preventScroll: true });
+      return;
+    }
     const currentHtml = editorRef.current.innerHTML;
     if (currentHtml === '<br>' || currentHtml === '<br/>' || !editorRef.current.innerText.trim()) {
       editorRef.current.innerHTML = '';
@@ -561,10 +1322,67 @@ const TextBlockItem: React.FC<TextBlockItemProps> = ({
       }
     }
 
-    // Prevent accidental block deletion
-    if (e.key === 'Backspace') {
+    // Handle Enter inside an empty list item to cleanly exit the bullet list
+    if (e.key === 'Enter') {
+      const sel = window.getSelection();
+      if (sel && sel.isCollapsed && sel.anchorNode) {
+        const li = (
+          sel.anchorNode.nodeType === Node.ELEMENT_NODE
+            ? (sel.anchorNode as HTMLElement)
+            : sel.anchorNode.parentElement
+        )?.closest('li');
+
+        if (li && editorRef.current?.contains(li)) {
+          const liText = (li.innerText || '').replace(/[\u200B\u00A0\s]/g, '');
+          if (!liText) {
+            // Empty list item: exit list cleanly into regular paragraph / div
+            e.preventDefault();
+            document.execCommand('insertUnorderedList', false);
+            if (editorRef.current) {
+              onChange(editorRef.current.innerHTML);
+            }
+            onSelectionChange?.();
+            return;
+          }
+        }
+      }
+    }
+
+    // Prevent accidental block deletion and support Backspace/Delete across hardware & mobile keyboards
+    const isBackspace = e.key === 'Backspace' || e.code === 'Backspace' || e.keyCode === 8;
+    const isDelete = e.key === 'Delete' || e.code === 'Delete' || e.keyCode === 46;
+
+    if (isBackspace) {
+      if (tryDeleteAdjacentRefChip('backward')) {
+        e.preventDefault();
+        return;
+      }
+
+      // If inside an empty list item, backspace should outdent/exit list rather than deleting whole block
+      const sel = window.getSelection();
+      if (sel && sel.isCollapsed && sel.anchorNode) {
+        const li = (
+          sel.anchorNode.nodeType === Node.ELEMENT_NODE
+            ? (sel.anchorNode as HTMLElement)
+            : sel.anchorNode.parentElement
+        )?.closest('li');
+
+        if (li && editorRef.current?.contains(li)) {
+          const liText = (li.innerText || '').replace(/[\u200B\u00A0\uFEFF\s]/g, '');
+          if (!liText) {
+            e.preventDefault();
+            document.execCommand('insertUnorderedList', false);
+            if (editorRef.current) {
+              onChange(editorRef.current.innerHTML);
+            }
+            onSelectionChange?.();
+            return;
+          }
+        }
+      }
+
       const el = editorRef.current;
-      const text = el ? (el.innerText || '').replace(/[\u200B\u00A0\s]/g, '') : '';
+      const text = el ? (el.innerText || '').replace(/[\u200B\u00A0\uFEFF\s]/g, '') : '';
       const hasMediaOrRef = el ? !!el.querySelector('[data-ref], img, audio, video') : false;
 
       // If the block has text content or reference chips, DO NOT delete the block container!
@@ -579,6 +1397,11 @@ const TextBlockItem: React.FC<TextBlockItemProps> = ({
 
       e.preventDefault();
       onDeleteBlock();
+    } else if (isDelete) {
+      if (tryDeleteAdjacentRefChip('forward')) {
+        e.preventDefault();
+        return;
+      }
     }
   };
 
@@ -611,6 +1434,58 @@ const TextBlockItem: React.FC<TextBlockItemProps> = ({
         suppressContentEditableWarning
         data-block-index={blockIndex}
         onInput={handleInput}
+        onBeforeInput={(e: React.FormEvent<HTMLDivElement>) => {
+          const nativeEvt = e.nativeEvent as InputEvent;
+          if (!nativeEvt || !nativeEvt.inputType) return;
+          if (
+            nativeEvt.inputType === 'deleteContentBackward' ||
+            nativeEvt.inputType === 'deleteWordBackward' ||
+            nativeEvt.inputType === 'deleteSoftLineBackward' ||
+            nativeEvt.inputType === 'deleteHardLineBackward' ||
+            nativeEvt.inputType === 'deleteEntireSoftLine'
+          ) {
+            if (tryDeleteAdjacentRefChip('backward')) {
+              e.preventDefault();
+            }
+          } else if (
+            nativeEvt.inputType === 'deleteContentForward' ||
+            nativeEvt.inputType === 'deleteWordForward' ||
+            nativeEvt.inputType === 'deleteSoftLineForward' ||
+            nativeEvt.inputType === 'deleteHardLineForward'
+          ) {
+            if (tryDeleteAdjacentRefChip('forward')) {
+              e.preventDefault();
+            }
+          } else if (nativeEvt.inputType && nativeEvt.inputType.startsWith('insert')) {
+            const sel = window.getSelection();
+            if (sel && sel.anchorNode) {
+              const chip = (
+                sel.anchorNode.nodeType === Node.ELEMENT_NODE
+                  ? (sel.anchorNode as HTMLElement)
+                  : sel.anchorNode.parentElement
+              )?.closest('[data-ref], .ref-chip') as HTMLElement | null;
+              if (chip && editorRef.current?.contains(chip)) {
+                let nextTextNode: Text | null = null;
+                if (chip.nextSibling && chip.nextSibling.nodeType === Node.TEXT_NODE) {
+                  nextTextNode = chip.nextSibling as Text;
+                } else {
+                  nextTextNode = document.createTextNode('\u00A0');
+                  (chip as unknown as ChildNode).after(nextTextNode);
+                }
+                const textVal = nextTextNode.nodeValue || '';
+                if (!textVal) {
+                  nextTextNode.nodeValue = '\u00A0';
+                }
+                const r = document.createRange();
+                const caretPos = /^[\s\u00A0]/.test(nextTextNode.nodeValue || '') ? 1 : (nextTextNode.nodeValue || '').length;
+                r.setStart(nextTextNode, Math.min(caretPos, (nextTextNode.nodeValue || '').length));
+                r.collapse(true);
+                sel.removeAllRanges();
+                sel.addRange(r);
+              }
+            }
+          }
+        }}
         onKeyDown={handleKeyDown}
         onKeyUp={() => onSelectionChange?.()}
         onMouseUp={() => onSelectionChange?.()}
@@ -620,7 +1495,7 @@ const TextBlockItem: React.FC<TextBlockItemProps> = ({
         onBlur={handleBlur}
         data-placeholder="Start typing..."
         style={{ color: darkMode ? '#f8fafc' : '#0f172a' }}
-        className={`w-full bg-transparent font-serif text-base sm:text-lg leading-relaxed text-stone-900 dark:text-stone-100 focus:outline-none p-0 empty:before:content-[attr(data-placeholder)] empty:before:pointer-events-none empty:before:text-stone-400/40 [&:has(>br:only-child)]:before:content-[attr(data-placeholder)] [&:has(>br:only-child)]:before:pointer-events-none [&:has(>br:only-child)]:before:text-stone-400/40 select-text ${
+        className={`relative w-full bg-transparent font-serif text-base sm:text-lg leading-relaxed text-stone-900 dark:text-stone-100 focus:outline-none p-0 before:pointer-events-none before:text-stone-400/40 before:absolute before:left-0 before:top-0 empty:before:content-[attr(data-placeholder)] [&:has(>br:only-child)]:before:content-[attr(data-placeholder)] select-text ${
           isLastBlock ? 'min-h-[240px] sm:min-h-[360px]' : 'min-h-[32px]'
         }`}
       />
@@ -671,6 +1546,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
   }>({});
   const [showMoreMenu, setShowMoreMenu] = useState<boolean>(false);
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
+  const [showDatePickerModal, setShowDatePickerModal] = useState<boolean>(false);
   const [customRefInput, setCustomRefInput] = useState<string>('Matt 5 v 7-20');
   const [showFormatToolbar, setShowFormatToolbar] = useState<boolean>(false);
   const [isAllBlocksSelected, setIsAllBlocksSelected] = useState<boolean>(false);
@@ -683,7 +1559,6 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
   }, [isAllBlocksSelected]);
 
   const moreMenuRef = useRef<HTMLDivElement>(null);
-  const dateInputRef = useRef<HTMLInputElement>(null);
   const titleTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Flag to block destructive selectionchange overwrites while any modal is open
@@ -693,6 +1568,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
     showDrawingCanvas ||
     showQuickBibleReader ||
     showDeleteModal ||
+    showDatePickerModal ||
     !!activePopupMatch ||
     !!activeStrongsId;
   const isAnyModalOpenRef = useRef<boolean>(false);
@@ -747,12 +1623,14 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
     bold: boolean;
     italic: boolean;
     underline: boolean;
+    bullet: boolean;
     fontSize: string;
     align: 'left' | 'center' | 'right';
   }>({
     bold: false,
     italic: false,
     underline: false,
+    bullet: false,
     fontSize: '3',
     align: 'left',
   });
@@ -1255,10 +2133,25 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
       const isRight = document.queryCommandState('justifyRight');
       const alignVal = isRight ? 'right' : isCenter ? 'center' : 'left';
 
+      let isBullet = false;
+      try {
+        isBullet = document.queryCommandState('insertUnorderedList');
+      } catch {
+        // fallback check if selection anchor is within <ul> or <li>
+        const sel = window.getSelection();
+        if (sel && sel.anchorNode) {
+          const parentEl = sel.anchorNode.nodeType === Node.ELEMENT_NODE
+            ? (sel.anchorNode as HTMLElement)
+            : sel.anchorNode.parentElement;
+          isBullet = !!parentEl?.closest('ul');
+        }
+      }
+
       setActiveFormats({
         bold: isBold,
         italic: isItalic,
         underline: isUnderline,
+        bullet: isBullet,
         fontSize: sizeVal,
         align: alignVal,
       });
@@ -2222,16 +3115,7 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
   };
 
   const handleCalendarClick = () => {
-    if (dateInputRef.current) {
-      if (typeof dateInputRef.current.showPicker === 'function') {
-        try {
-          dateInputRef.current.showPicker();
-          return;
-        } catch (_) {}
-      }
-      dateInputRef.current.focus();
-      dateInputRef.current.click();
-    }
+    setShowDatePickerModal(true);
   };
 
   const editorBgClass = isPureBlack
@@ -2348,27 +3232,17 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
           </button>
 
           {/* Normal Size Date Display Pill (dd/mm/yyyy) */}
-          <div
+          <button
+            type="button"
             onClick={handleCalendarClick}
-            className={`relative flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer group shrink-0 border shadow-2xs ${datePillClass}`}
+            className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer group shrink-0 border shadow-2xs active:scale-95 ${datePillClass}`}
             title="Change Note Date (DD/MM/YYYY)"
           >
             <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-500 shrink-0" />
             <span className="text-xs font-bold tracking-tight select-none">
               {formatDateDDMMYYYY(dateString)}
             </span>
-            <input
-              ref={dateInputRef}
-              type="date"
-              value={dateString}
-              onChange={(e) => {
-                if (e.target.value) {
-                  setDateString(e.target.value);
-                }
-              }}
-              className="absolute inset-0 opacity-0 w-full h-full cursor-pointer pointer-events-auto"
-            />
-          </div>
+          </button>
 
           {/* Undo and Redo Controls */}
           <div className={`flex items-center gap-0.5 pl-1 sm:pl-1.5 border-l shrink-0 ${dividerClass}`}>
@@ -2621,41 +3495,43 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                     : ''
                 }`}
               >
-                {/* Subtle Hover Action Bar for moving/deleting block */}
-                <div className="absolute right-2 -top-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex items-center gap-1 bg-stone-900/90 dark:bg-neutral-800/90 backdrop-blur-md px-2 py-1 rounded-full text-white text-[10px] shadow-lg">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleMoveUp(index);
-                    }}
-                    disabled={index === 0}
-                    className="p-1 hover:text-red-400 disabled:opacity-30"
-                    title="Move up"
-                  >
-                    <ChevronUp className="w-3 h-3" />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleMoveDown(index);
-                    }}
-                    disabled={index === blocks.length - 1}
-                    className="p-1 hover:text-red-400 disabled:opacity-30"
-                    title="Move down"
-                  >
-                    <ChevronDown className="w-3 h-3" />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteBlock(index);
-                    }}
-                    className="p-1 hover:text-red-400 text-stone-300"
-                    title="Delete item"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                </div>
+                {/* Subtle Hover Action Bar for moving/deleting media blocks (never on text blocks) */}
+                {block.type !== 'text' && (
+                  <div className="absolute right-2 -top-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex items-center gap-1 bg-stone-900/90 dark:bg-neutral-800/90 backdrop-blur-md px-2 py-1 rounded-full text-white text-[10px] shadow-lg pointer-events-none group-hover:pointer-events-auto">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleMoveUp(index);
+                      }}
+                      disabled={index === 0}
+                      className="p-1 hover:text-red-400 disabled:opacity-30"
+                      title="Move up"
+                    >
+                      <ChevronUp className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleMoveDown(index);
+                      }}
+                      disabled={index === blocks.length - 1}
+                      className="p-1 hover:text-red-400 disabled:opacity-30"
+                      title="Move down"
+                    >
+                      <ChevronDown className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteBlock(index);
+                      }}
+                      className="p-1 hover:text-red-400 text-stone-300"
+                      title="Delete item"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
 
                 {/* 1. TEXT BLOCK */}
                 {block.type === 'text' && (
@@ -2818,6 +3694,21 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
                 title="Underline"
               >
                 <Underline className={`w-4 h-4 ${activeFormats.underline ? 'stroke-[3]' : ''}`} />
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  executeFormat('insertUnorderedList');
+                }}
+                className={`p-1.5 rounded-xl active:scale-95 transition-all ${
+                  activeFormats.bullet
+                    ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-400 dark:ring-blue-500'
+                    : 'hover:bg-stone-200 dark:hover:bg-neutral-700 text-stone-800 dark:text-neutral-100'
+                }`}
+                title="Bullet List"
+              >
+                <List className={`w-4 h-4 ${activeFormats.bullet ? 'stroke-[2.5]' : ''}`} />
               </button>
             </div>
 
@@ -3281,6 +4172,18 @@ export const NoteEditorScreen: React.FC<NoteEditorScreenProps> = ({
           <span>{copyToastMessage}</span>
         </div>
       )}
+
+      {/* Custom App-Styled Date Picker Modal */}
+      <DatePickerModal
+        isOpen={showDatePickerModal}
+        initialDateString={dateString}
+        onSelectDate={(newDate) => {
+          setDateString(newDate);
+        }}
+        onClose={() => setShowDatePickerModal(false)}
+        darkMode={darkMode}
+        currentTheme={currentTheme}
+      />
     </div>
   );
 };

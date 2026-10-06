@@ -13,7 +13,9 @@ const STATIC_PRECACHE = [
   '/bible/KJV/43.json', // John
   '/bible/KJV/45.json', // Romans
   '/bible/NKJV/40.json',
-  '/bible/ESV/40.json'
+  '/bible/ESV/40.json',
+  '/bible/YOR/40.json', // Matthew (Yoruba)
+  '/bible/YOR/43.json'  // John (Yoruba)
 ];
 
 // Install event: Precache core assets & activate immediately

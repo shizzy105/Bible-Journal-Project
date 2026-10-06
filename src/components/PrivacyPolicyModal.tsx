@@ -9,7 +9,7 @@ interface PrivacyPolicyModalProps {
 export const PRIVACY_POLICY_TEXT = `PRIVACY POLICY FOR ASOR NOTES
 Effective Date: September 16, 2026
 Application: Asor Notes (com.asornotes.app)
-Contact: Asor initiative (Asornotes@gmail.com)
+Contact: Asor initiative (help@Asornotes.com)
 
 1. OVERVIEW
 Asor Notes ("we", "our", or "the App") is an offline-first Bible study, sermon journaling, and scripture concordance application. 
@@ -51,7 +51,7 @@ We may update this Privacy Policy from time to time. Any revisions will be refle
 8. CONTACT US
 If you have any questions, suggestions, or concerns regarding this Privacy Policy or your data privacy, please contact:
 Developer: Asor initiative
-Email: Asornotes@gmail.com
+Email: help@Asornotes.com
 Application: Asor Notes (com.asornotes.app)`;
 
 export const PrivacyPolicyModal: React.FC<PrivacyPolicyModalProps> = ({ onClose, darkMode }) => {
@@ -180,7 +180,7 @@ export const PrivacyPolicyModal: React.FC<PrivacyPolicyModalProps> = ({ onClose,
                 <span>Contact</span>
               </div>
               <p className="text-xs text-stone-600 dark:text-stone-300">
-                Developer: Asor initiative &bull; Email: Asornotes@gmail.com
+                Developer: Asor initiative &bull; Email: help@Asornotes.com
               </p>
             </section>
           </div>
